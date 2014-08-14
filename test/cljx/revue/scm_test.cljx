@@ -2,12 +2,15 @@
 
 (ns revue.scm-test
   (:refer-clojure :exclude (compile))
-  #+cljs (:require-macros [cemerick.cljs.test :refer (deftest testing is are)])            
+  #+cljs (:require-macros [cemerick.cljs.test :refer (deftest testing is are)]
+                          [clojure.test.check.clojure-test :refer (defspec)])
   (:require #+clj [clojure.test :refer (deftest testing is are)]
             #+cljs [cemerick.cljs.test :as t]
-            [clojure.test.check :as ct]
+            [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop :include-macros true]
+            #+clj [clojure.test.check.clojure-test :as ct :refer (defspec)]
+            #+cljs [clojure.test.check.clojure-test :as ct]
             [revue.util :as util]
             [revue.vm :as vm]
             [revue.scm :as scm]))
