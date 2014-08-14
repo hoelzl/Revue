@@ -9,6 +9,10 @@
             [revue.vm :as vm]
             [revue.scm :as scm]))
 
+(deftest warn-01
+  (testing "Warnings from the compiler."
+    (is (= (with-out-str (scm/warn "What?")) "Compiler Warning: What?\n"))))
+
 (deftest compile-01
   (testing "Compile a simple program."
     (is (= (scm/compile 'foo) 'nop))))
@@ -16,3 +20,5 @@
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
 ;;; (clojure.test/run-tests 'revue.scm-test)
+;;; Evaluate this to run the test for all namespaces:
+;;; (clojure.test/run-all-tests #"^revue\..*-test")

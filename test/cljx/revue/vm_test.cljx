@@ -7,10 +7,12 @@
             [revue.util :as util]
             [revue.vm :as vm]))
 
-(deftest vm-01
-  (testing "Execute a simple program."
-    (is (= 0 0))))
+(deftest warn-01
+  (testing "Warnings from the VM."
+    (is (= (with-out-str (vm/warn "Hey!")) "VM Warning: Hey!\n"))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
 ;;; (clojure.test/run-tests 'revue.vm-test)
+;;; Evaluate this to run the test for all namespaces:
+;;; (clojure.test/run-all-tests #"^revue\..*-test")
