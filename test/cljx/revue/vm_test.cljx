@@ -3,7 +3,7 @@
 (ns revue.vm-test
   #+cljs (:require-macros [cemerick.cljs.test :refer (deftest testing is are)]
                           [clojure.test.check.clojure-test :refer (defspec)])
-  (:require #+clj [clojure.test :refer (deftest testing is are)]
+  (:require #+clj [clojure.test :as t :refer (deftest testing is are)]
             #+cljs [cemerick.cljs.test :as t]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
