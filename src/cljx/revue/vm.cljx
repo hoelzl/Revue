@@ -34,7 +34,7 @@
 ;;; * Keywords
 ;;; * Strings
 ;;; * Lists 
-;;; * Arrays
+;;; * Vectors
 ;;; * Maps
 ;;; * Sets
 
@@ -46,7 +46,7 @@
 ;;; symbols, keywords and strings) directly, and only use references
 ;;; for the compound data types.  The stored values are therefore
 ;;; Booleans, numbers, symbols, keywords, strings, references to
-;;; lists, references to arrays, references to maps and references to
+;;; lists, references to vectors, references to maps and references to
 ;;; sets.
 
 (defprotocol StoredData
@@ -96,6 +96,31 @@
         new-store (conj store car cdr)]
     [(->VmCons address) new-store]))
 
+(defrecord VmVector [address size]
+  StoredData
+  (-->clojure [this store]
+    (into []
+          (for [address (range (:address this)
+                               (+ (:address this) (:size this)))]
+            (->clojure (store address) store))))
+  HeapObject
+  (-address [this]
+    (:address this))
+  (-size [this]
+    (:size this)))
+
+(defn new-vector
+  "Allocate a new VmVector. The contents has to be StoredData.
+
+  There is no way to create an uninitialized vector.  To create an
+  vector of a prespecified size with a given element, do something
+  like (new-vector (repeat 10 false) store)"
+  [contents store]
+  (let [address (count store)
+        size (count contents)
+        new-store (into [] (concat store contents))]
+    [(->VmVector address size) new-store]))
+
 
 ;;; We define the ->clojure function as a wrapper around the protocol
 ;;; to avoid warnings from the ClojureScript compiler.  This is
@@ -137,7 +162,16 @@
         (if-let [exp-cdr (next this)]
           (let [[cdr new-store] (->vm exp-cdr tmp-store)]
             (new-cons [car cdr] new-store))
-          (new-cons [car ()] tmp-store)))))
+          (new-cons [car ()] tmp-store))))
+  #+clj clojure.lang.PersistentVector #+cljs cljs.core/PersistentVector
+  (-->vm [this store]
+    (let [[store-vec new-store]
+          (reduce (fn [[vec store] elt]
+                    (let [[new-elt new-store] (->vm elt store)]
+                      [(conj vec new-elt) new-store]))
+                  [[] store]
+                  this)]
+      (new-vector store-vec new-store))))
 
 (defn ->vm
   "Convert expressed data to stored data, i.e., convert Clojure data
