@@ -129,17 +129,24 @@
     [(->VmVector address size) new-store]))
 
 ;;; To simplify the implementation we define a map as a reference to
-;;; an array consisting of key-value pairs.
-(defrecord VmMap [address]
+;;; a vector consisting of key-value pairs.
+(defrecord VmMap [vector-ref]
   StoredData
   (-->clojure [this store]
-    (let [kv-array (->clojure (store (:address this)) store)]
-      (into {} kv-array)))
+    (let [kv-vector (->clojure (:vector-ref this) store)]
+      (into {} kv-vector)))
   HeapObject
   (-address [this store]
-    (:address this))
+    (-address (:vector-ref this) store))
   (-size [this store]
-    (-size (store (:address this)) store)))
+    (-size (:vector-ref this) store)))
+
+(defn new-map
+  "Allocate a new VmMap.  The contents is passed as a vector of key-value
+  pairs; these pairs have to be already converted into stored data."
+  [contents store]
+  (let [[v new-store] (new-vector contents store)]
+    [(->VmMap v) new-store]))
 
 ;;; We define the ->clojure function as a wrapper around the protocol
 ;;; to avoid warnings from the ClojureScript compiler.  This is
@@ -161,6 +168,16 @@
   (-->vm [this store]))
 
 (declare ->vm)
+
+(defn convert-to-store-vector
+  "Convert a vector containing expressed data to a vector consisting
+  only of stored-data and a new store."
+  [vector store]
+  (reduce (fn [[vec store] elt]
+            (let [[new-elt new-store] (->vm elt store)]
+              [(conj vec new-elt) new-store]))
+          [[] store]
+          vector))
 
 (extend-protocol ExpressedData
   #+clj java.lang.Boolean #+cljs boolean
@@ -194,12 +211,20 @@
     (if (every? util/atomic? this)
       (new-vector this store)
       (let [[store-vec new-store]
-            (reduce (fn [[vec store] elt]
-                      (let [[new-elt new-store] (->vm elt store)]
-                        [(conj vec new-elt) new-store]))
-                    [[] store]
-                    this)]
-        (new-vector store-vec new-store)))))
+            (convert-to-store-vector this store)]
+        (new-vector store-vec new-store))))
+  #+clj clojure.lang.MapEntry ;;; ClojureScript does not have map entries
+  #+clj
+  (-->vm [this store]
+    (->vm (vector (first this) (second this)) store))
+  #+clj clojure.lang.PersistentArrayMap #+cljs cljs.core/PersistentArrayMap
+  (-->vm [this store]
+    (let [[store-vec new-store] (convert-to-store-vector (seq this) store)]
+      (new-map store-vec new-store)))
+  #+clj clojure.lang.PersistentHashMap #+cljs cljs.core/PersistentHashMap
+  (-->vm [this store]
+    (let [[store-vec new-store] (convert-to-store-vector (seq this) store)]
+      (new-map store-vec new-store))))
 
 (defn ->vm
   "Convert expressed data to stored data, i.e., convert Clojure data

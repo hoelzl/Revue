@@ -15,8 +15,16 @@
 
 ;;; Set this to false to speed up interactive testing.
 (def ^:dynamic *large-tests* true)
+
+;;; For some tests, attribute-based test generation creates huge data
+;;; structures if we are running them with a high number of
+;;; repetitions.  To limit the amount of time needed for interactive
+;;; testing, we limit ourselves to 50 repetitions when testing
+;;; interactively.  In addition, we reduce the number of repetitions
+;;; for ClojureScript, since test are running only in a single thread
+;;; there.
 (def ^:dynamic *large-number-of-repetitions*
-  #+clj (if (find-ns 'clojure.repl) 50 100)
+  #+clj (if (find-ns 'clojure.repl) 50 75)
   #+cljs 50)
 
 
@@ -59,6 +67,19 @@
 (def nested-vector
   (gen/sized (sized-vector expressed-simple-type)))
 
+;;; Generator for maps; keys are always keywords.
+(defn sized-map [inner-type]
+  (fn [size]
+    (if (zero? size)
+      inner-type
+      (gen/one-of [inner-type
+                   (gen/map gen/keyword
+                            (gen/resize (quot size 2)
+                                        (gen/sized (sized-map inner-type))))]))))
+
+(def nested-map
+  (gen/sized (sized-map expressed-simple-type)))
+
 
 (defn sized-collection [inner-type]
   (fn [size]
@@ -68,7 +89,10 @@
                    (gen/list (gen/resize (quot size 2)
                                          (gen/sized (sized-collection inner-type))))
                    (gen/vector (gen/resize (quot size 2)
-                                           (gen/sized (sized-collection inner-type))))]))))
+                                           (gen/sized (sized-collection inner-type))))
+                   (gen/map gen/keyword
+                            (gen/resize (quot size 2)
+                                        (gen/sized (sized-map inner-type))))]))))
 
 (def nested-collection
   (gen/sized (sized-collection expressed-simple-type)))
@@ -225,6 +249,20 @@
   (testing "Create large VmVector instance"
     (is (= (:size (first (vm/->vm (into [] (repeat 250000 [1 '(2)]))))) 250000))))
 
+(deftest vm-map-01
+  (testing "Create VmMap instances"
+    (let [[vm-map state] (vm/->vm {})]
+      (is (= (vm/-address vm-map state) 0))
+      (is (= (vm/-size vm-map state) 0))
+      (is (= state [])))
+    (let [[vm-map state] (vm/->vm {:a 1 :b 2})]
+      ;; This is highly dependent on the particulars of the allocator
+      ;; and might change in the future.
+      (is (= (vm/-address vm-map state) 4))
+      (is (= (vm/-size vm-map state) 2))
+      ;; We are allocating four values for :a, 1, :b, 2, and two
+      ;; vectors for the key-value mappings
+      (is (= (count state) 6)))))
 
 (deftest ->clojure-vector
   (testing "Convert VmVector to Clojure"
@@ -326,9 +364,6 @@
   (testing
       "Random roundtrip test for lists."
     (prop/for-all [l nested-list store (gen-state)]
-      (let [len (count (flatten l))]
-        (when (> len 10000)
-          (println "Testing with list length" len)))
       (is (= (apply vm/->clojure (vm/->vm l [])) l)))))
 
 (defspec ->clojure->vm-vector
@@ -336,9 +371,13 @@
   (testing
       "Random roundtrip test for vectors."
     (prop/for-all [v nested-vector store (gen-state)]
-      (let [len (count (flatten v))]
-        (when (> len 10000)
-          (println "Testing with vector length" len)))
+      (is (= (apply vm/->clojure (vm/->vm v [])) v)))))
+
+(defspec ->clojure->vm-map
+  (if *large-tests* *large-number-of-repetitions* 10)
+  (testing
+      "Random roundtrip test for maps."
+    (prop/for-all [v nested-map store (gen-state)]
       (is (= (apply vm/->clojure (vm/->vm v [])) v)))))
 
 (defspec ->clojure->vm-collection
@@ -346,9 +385,10 @@
   (testing
       "Random roundtrip test for vectors."
     (prop/for-all [c nested-collection store (gen-state)]
-      (let [len (count (flatten c))]
-        (when (> len 10000)
-          (println "Testing with collection length" len)))
+      (when false ;; Set this to true to check which collections are generated.
+        (println "Generated collections:")
+        (clojure.pprint/pprint c)
+        (flush))
       (is (= (apply vm/->clojure (vm/->vm c [])) c)))))
 
 
