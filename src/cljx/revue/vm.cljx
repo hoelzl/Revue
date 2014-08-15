@@ -159,11 +159,17 @@
   (-->vm [this store] [() store])
   #+clj clojure.lang.PersistentList #+cljs cljs.core/List
   (-->vm [this store]
-    (let [[car tmp-store] (->vm (first this) store)]
-        (if-let [exp-cdr (next this)]
-          (let [[cdr new-store] (->vm exp-cdr tmp-store)]
-            (new-cons [car cdr] new-store))
-          (new-cons [car ()] tmp-store))))
+    ;; Written in this slightly convoluted way to avoid stack overflow
+    ;; for long lists.
+    (let [[elts new-store] (reduce (fn [[lst store] elt]
+                                     (let [[new-elt tmp-store] (->vm elt store)]
+                                       [(cons new-elt lst) tmp-store]))
+                                   [() store]
+                                   this)]
+      (reduce (fn [[vm-cons store] d]
+                (new-cons [d vm-cons] store))
+              [() new-store]
+              elts)))
   #+clj clojure.lang.PersistentVector #+cljs cljs.core/PersistentVector
   (-->vm [this store]
     ;; Quick path for allocating vectors containing atomic data.

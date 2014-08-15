@@ -15,8 +15,10 @@
 
 ;;; Set this to false to speed up interactive testing.
 (def ^:dynamic *large-tests* true)
-(def ^:dynamic *number-of-clj-repetitions* 100)
-(def ^:dynamic *number-of-cljs-repetitions* 50)
+(def ^:dynamic *large-number-of-repetitions*
+  #+clj (if (find-ns 'clojure.repl) 50 100)
+  #+cljs 50)
+
 
 (deftest warn-01
   (testing "Warnings from the VM."
@@ -77,12 +79,12 @@
 
 
 (deftest ->clojure-bool
-  (testing "Conversion of stored Booleans to Clojure."
+  (testing "Convert stored Booleans to Clojure."
     (is (= (vm/->clojure true []) true))
     (is (= (vm/->clojure false []) false))))
 
 (deftest ->clojure-number
-  (testing "Conversion of stored numbers to Clojure."
+  (testing "Convert stored numbers to Clojure."
     (is (= (vm/->clojure 0 []) 0))
     (is (= (vm/->clojure 1 []) 1))
     (is (= (vm/->clojure -1 []) -1))
@@ -120,13 +122,37 @@
       (is (= (vm/->clojure s) s)))))
 
 (deftest vm-cons-01
-  (testing "Creating VmCons instances."
+  (testing "Create VmCons instances."
     (let [[vm-cons state] (vm/new-cons [1 ()] [])]
       (is (= (:address vm-cons) 0))
       (is (= state [1 ()])))))
 
+(deftest vm-cons-1000
+  (testing "Create large VmCons instance"
+    (is (= (vm/-size (first (vm/->vm (into () (repeat 1000 1))))) 2))))
+
+(deftest vm-cons-1000-complex
+  (testing "Create large VmCons instance"
+    (is (= (vm/-size (first (vm/->vm (into () (repeat 1000 [1 '(2)]))))) 2))))
+
+(deftest vm-cons-5000
+  (testing "Create large VmCons instance"
+    (is (= (vm/-size (first (vm/->vm (into () (repeat 5000 1))))) 2))))
+
+(deftest vm-cons-5000-complex
+  (testing "Create large VmCons instance"
+    (is (= (vm/-size (first (vm/->vm (into () (repeat 5000 [1 '(2)]))))) 2))))
+
+(deftest vm-cons-250000
+  (testing "Create large VmCons instance"
+    (is (= (vm/-size (first (vm/->vm (into () (repeat 250000 1))))) 2))))
+
+(deftest vm-cons-250000-complex
+  (testing "Create large VmCons instance"
+    (is (= (vm/-size (first (vm/->vm (into () (repeat 250000 [1 '(2)]))))) 2))))
+
 (deftest ->clojure-cons
-  (testing "Converting VmCons to Clojure."
+  (testing "Convert VmCons to Clojure."
     (let [[vm-cons store] (vm/new-cons [1 ()] [])
           list (vm/->clojure vm-cons store)]
       (is (= list '(1))))
@@ -136,22 +162,47 @@
       (is (= list '(1 2))))))
 
 (deftest vm-vector-01
-  (testing "Creating VmVector instances."
+  (testing "Create VmVector instances."
     (let [[vm-vector state] (vm/new-vector [] [])]
       (is (= (:address vm-vector) 0))
-      (is (= (:size vm-vector) 0))
+      (is (= (vm/-size vm-vector) 0))
       (is (= state [])))    
     (let [[vm-vector state] (vm/new-vector [1 2 3] [])]
       (is (= (:address vm-vector) 0))
-      (is (= (:size vm-vector) 3))
+      (is (= (vm/-size vm-vector) 3))
       (is (= state [1 2 3])))
     (let [[vm-vector state] (vm/new-vector (repeat 5 false) [])]
       (is (= (:address vm-vector) 0))
-      (is (= (:size vm-vector) 5))
+      (is (= (vm/-size vm-vector) 5))
       (is (= state [false false false false false])))))
 
+(deftest vm-vector-1000
+  (testing "Create large VmVector instance"
+    (is (= (vm/-size (first (vm/->vm (into [] (repeat 1000 1))))) 1000))))
+
+(deftest vm-vector-1000-complex
+  (testing "Create large VmVector instance"
+    (is (= (vm/-size (first (vm/->vm (into [] (repeat 1000 [1 '(2)]))))) 1000))))
+
+(deftest vm-vector-5000
+  (testing "Create large VmVector instance"
+    (is (= (vm/-size (first (vm/->vm (into [] (repeat 5000 1))))) 5000))))
+
+(deftest vm-vector-5000-complex
+  (testing "Create large VmVector instance"
+    (is (= (vm/-size (first (vm/->vm (into [] (repeat 5000 [1 '(2)]))))) 5000))))
+
+(deftest vm-vector-250000
+  (testing "Create large VmVector instance"
+    (is (= (vm/-size (first (vm/->vm (into [] (repeat 250000 1))))) 250000))))
+
+(deftest vm-vector-250000-complex
+  (testing "Create large VmVector instance"
+    (is (= (vm/-size (first (vm/->vm (into [] (repeat 250000 [1 '(2)]))))) 250000))))
+
+
 (deftest ->clojure-vector
-  (testing "Converting VmVector to Clojure"
+  (testing "Convert VmVector to Clojure"
     (let [check (fn [v]
                   (is (= (apply vm/->clojure (vm/new-vector v [])) v)))]
       (check [])
@@ -165,12 +216,12 @@
 ;;; =============================================================
 
 (deftest ->vm-bool
-  (testing "Conversion of represeented Booleans to the VM format."
+  (testing "Convert represeented Booleans to the VM format."
     (is (= (vm/->vm true []) [true []]))
     (is (= (vm/->vm false []) [false []]))))
 
 (deftest ->vm-number
-  (testing "Conversion of represeented numbers to the VM format."
+  (testing "Convert represeented numbers to the VM format."
     (is (= (vm/->vm 0 []) [0 []]))
     (is (= (vm/->vm 1 []) [1 []]))
     (is (= (vm/->vm -1 []) [-1 []]))
@@ -246,10 +297,7 @@
       (is (= (apply vm/->clojure (vm/->vm s [])) s)))))
 
 (defspec ->clojure->vm-list
-  (if *large-tests*
-    #+clj *number-of-clj-repetitions*
-    #+cljs *number-of-cljs-repetitions*
-    10)
+  (if *large-tests* *large-number-of-repetitions* 10)
   (testing
       "Random roundtrip test for lists."
     (prop/for-all [l nested-list store (gen-state)]
@@ -260,10 +308,7 @@
       (is (= (apply vm/->clojure (vm/->vm l [])) l)))))
 
 (defspec ->clojure->vm-vector
-  (if *large-tests*
-    #+clj *number-of-clj-repetitions*
-    #+cljs *number-of-cljs-repetitions*
-    10)
+  (if *large-tests* *large-number-of-repetitions* 10)
   (testing
       "Random roundtrip test for vectors."
     (prop/for-all [v nested-vector store (gen-state)]
@@ -274,10 +319,7 @@
       (is (= (apply vm/->clojure (vm/->vm v [])) v)))))
 
 (defspec ->clojure->vm-collection
-  (if *large-tests*
-    #+clj *number-of-clj-repetitions*
-    #+cljs *number-of-cljs-repetitions*
-    10)
+  (if *large-tests* *large-number-of-repetitions* 10)
   (testing
       "Random roundtrip test for vectors."
     (prop/for-all [c nested-collection store (gen-state)]
