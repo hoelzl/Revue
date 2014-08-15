@@ -36,7 +36,6 @@
 ;;; * Lists 
 ;;; * Vectors
 ;;; * Maps
-;;; * Sets
 
 ;;; The denoted values are references to mutable versions of the
 ;;; expressed values.
@@ -46,8 +45,26 @@
 ;;; symbols, keywords and strings) directly, and only use references
 ;;; for the compound data types.  The stored values are therefore
 ;;; Booleans, numbers, symbols, keywords, strings, references to
-;;; lists, references to vectors, references to maps and references to
-;;; sets.
+;;; lists, references to vectors, and references to maps.
+
+;;; The important functions are `->vm' for converting a represented
+;;; value into a stored value (i.e., for converting a Clojure datum
+;;; into its internal representation in the VM, and `->clojure' for
+;;; getting back a Clojure value from the VM's internal
+;;; representation.  These two functions are mostly inverse to each
+;;; other; #(apply ->clojure (->vm %)) is always the identity (unless
+;;; there is a bug in the implementation of the conversion); the other
+;;; direction, #(->vm (->clojure %1 %2) []), might result in a
+;;; different state than the one that was originally passed in.
+
+;;; In the conversion to Clojure, information about sharing in the
+;;; data is lost.  Some amount of loss is unavoidable, since Clojure
+;;; data structures cannot represent arbitrary graphs without using
+;;; refs, actors or atoms; in other cases it would be possible to
+;;; maintain sharing when converting data into Clojure structures
+;;; (e.g., shared tails when converting lists).  The loss of
+;;; information about sharing means that you cannot convert cyclic
+;;; data structures to Clojure, so beware.
 
 (defprotocol StoredData
   "Datatypes that are understood by the VM.  The conversion
@@ -56,6 +73,11 @@
   StoredData value."
   (-->clojure [this store]))
 
+;;; The `->clojure' function (defined below) is a simple wrapper
+;;; around `-->clojure' that mostly serves to avoid warnings from
+;;; ClojureScript, but also makes the `store' argument optional for a
+;;; slightly better interactive experience.
+;;;
 (declare ->clojure)
 
 (extend-protocol StoredData
@@ -73,18 +95,32 @@
   (-->clojure [this store] ()))
 
 (defprotocol HeapObject
-  "Datatypes that are stored on the heap."
+  "Datatypes that are stored on the heap.
+
+  HeapObjects can always report the address where they are stored on
+  the heap and their size.  It is not quite clear yet, what the
+  `-size' method should report for objects which do not occupy
+  contiguous regions of heap space, so the definition of the size
+  might change in the future."
   (-address [this store])
   (-size [this store]))
 
-;;; TODO: The ->clojure method may easily run out of stack space.
+;;; References to a cons cell on the heap, i.e., the stored value for
+;;; lists.
+;;;
 (defrecord VmCons [address]
   StoredData
+  ;; A naive implementation of `-->clojure' would be to cons together
+  ;; applications of `->clojure' to the two fields of the cons cell.
+  ;; Since we don't want to run out of stack space for larger list, we
+  ;; have to implement a more complex version.  Note that the current
+  ;; implementation only allows proper lists, i.e., you cannot use
+  ;; cons cells as dotted pairs.
   (-->clojure [this store]
     (loop [h (store (:address this))
            r (store (inc (:address this)))
            acc ()]
-      (if (identical? r ())
+      (if (identical? r ()) ;; Change this to enable dotted pairs.
         (reverse (cons (->clojure h store) acc))
         (recur (store (:address r))
                (store (inc (:address r)))
@@ -103,6 +139,10 @@
         new-store (conj store car cdr)]
     [(->VmCons address) new-store]))
 
+
+;;; Reference to a vector occupying a contiguous part of the heap.
+;;; Currently vectors are not resizable in place.
+;;;
 (defrecord VmVector [address size]
   StoredData
   (-->clojure [this store]
@@ -128,8 +168,10 @@
         new-store (into store contents)]
     [(->VmVector address size) new-store]))
 
-;;; To simplify the implementation we define a map as a reference to
-;;; a vector consisting of key-value pairs.
+;;; VM representation of maps.  To simplify the implementation, we
+;;; define a map as a reference to a vector consisting of key-value
+;;; pairs.
+;;;
 (defrecord VmMap [vector-ref]
   StoredData
   (-->clojure [this store]
@@ -164,9 +206,16 @@
 
 (defprotocol ExpressedData
   "Datatypes that can be converted to a VM representation.  The
-  function ->vm returns a type that implements StoredData."
+  function ->vm always returns a type that implements StoredData and
+  can therefore be converted back into expressed data.  The roundtrip
+  conversion from expressed data to stored data and back to expressed
+  data is always an identity."
   (-->vm [this store]))
 
+
+;;; A wrapper around the `-->vm' protocol method, to avoid warnings
+;;; from ClojureScript.
+;;;
 (declare ->vm)
 
 (defn convert-to-store-vector
@@ -217,6 +266,8 @@
   #+clj
   (-->vm [this store]
     (->vm (vector (first this) (second this)) store))
+  ;; We need both `PersistentArrayMap' and `PersistentHashMap' since
+  ;; literal maps give rise to both types, depending on their size.
   #+clj clojure.lang.PersistentArrayMap #+cljs cljs.core/PersistentArrayMap
   (-->vm [this store]
     (let [[store-vec new-store] (convert-to-store-vector (seq this) store)]

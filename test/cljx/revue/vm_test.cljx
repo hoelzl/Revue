@@ -385,6 +385,7 @@
   (testing
       "Random roundtrip test for vectors."
     (prop/for-all [c nested-collection store (gen-state)]
+      #+clj ;; ClojureScript does not have the clojure.pprint namespace
       (when false ;; Set this to true to check which collections are generated.
         (println "Generated collections:")
         (clojure.pprint/pprint c)
