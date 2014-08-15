@@ -77,6 +77,7 @@
   (-address [this])
   (-size [this]))
 
+;;; TODO: The ->clojure method may easily run out of stack space.
 (defrecord VmCons [address]
   StoredData
   (-->clojure [this store]
@@ -118,7 +119,7 @@
   [contents store]
   (let [address (count store)
         size (count contents)
-        new-store (into [] (concat store contents))]
+        new-store (into store contents)]
     [(->VmVector address size) new-store]))
 
 
@@ -165,13 +166,16 @@
           (new-cons [car ()] tmp-store))))
   #+clj clojure.lang.PersistentVector #+cljs cljs.core/PersistentVector
   (-->vm [this store]
-    (let [[store-vec new-store]
-          (reduce (fn [[vec store] elt]
-                    (let [[new-elt new-store] (->vm elt store)]
-                      [(conj vec new-elt) new-store]))
-                  [[] store]
-                  this)]
-      (new-vector store-vec new-store))))
+    ;; Quick path for allocating vectors containing atomic data.
+    (if (every? util/atomic? this)
+      (new-vector this store)
+      (let [[store-vec new-store]
+            (reduce (fn [[vec store] elt]
+                      (let [[new-elt new-store] (->vm elt store)]
+                        [(conj vec new-elt) new-store]))
+                    [[] store]
+                    this)]
+        (new-vector store-vec new-store)))))
 
 (defn ->vm
   "Convert expressed data to stored data, i.e., convert Clojure data

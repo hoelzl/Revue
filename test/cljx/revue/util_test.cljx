@@ -25,6 +25,28 @@
     (is (= (with-out-str (util/warn "Hi!")) "REVUE Warning: Hi!\n"))
     (is (= (with-out-str (util/warn "Foo" "Bar")) "Foo Bar\n"))))
 
+(deftest boolean?-01
+  (testing "Test the `boolean?' function."
+    (is (util/boolean? true))
+    (is (util/boolean? false))
+    (is (not (util/boolean? 0)))
+    (is (not (util/boolean? ())))
+    (is (not (util/boolean? [])))))
+
+(deftest atomic?-01
+  (testing "Test the `atomic?' function."
+    (is (util/atomic? true))
+    (is (util/atomic? false))
+    (is (util/atomic? 0))
+    (is (util/atomic? 1))
+    (is (util/atomic? -1))
+    (is (util/atomic? 'foo))
+    (is (util/atomic? :foo))
+    (is (util/atomic? "foo"))
+    (is (util/atomic? ()))
+    (is (not (util/atomic? [])))
+    (is (not (util/atomic? '(1 2 3))))
+    (is (not (util/atomic? [1 2 3])))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

@@ -15,6 +15,8 @@
 
 ;;; Set this to false to speed up interactive testing.
 (def ^:dynamic *large-tests* true)
+(def ^:dynamic *number-of-clj-repetitions* 100)
+(def ^:dynamic *number-of-cljs-repetitions* 50)
 
 (deftest warn-01
   (testing "Warnings from the VM."
@@ -244,33 +246,46 @@
       (is (= (apply vm/->clojure (vm/->vm s [])) s)))))
 
 (defspec ->clojure->vm-list
-  (if *large-tests* #+clj 100 #+cljs 50 10)
+  (if *large-tests*
+    #+clj *number-of-clj-repetitions*
+    #+cljs *number-of-cljs-repetitions*
+    10)
   (testing
       "Random roundtrip test for lists."
     (prop/for-all [l nested-list store (gen-state)]
-      ;; Comment-in the followin form to see the forms that are tested.
-      #_(clojure.pprint/pprint l) 
+      #_
+      (let [len (count (flatten l))]
+        (when (> len 1000)
+          (println "List length:" len)))
       (is (= (apply vm/->clojure (vm/->vm l [])) l)))))
-
 
 (defspec ->clojure->vm-vector
-  (if *large-tests* #+clj 100 #+cljs 50 10)
+  (if *large-tests*
+    #+clj *number-of-clj-repetitions*
+    #+cljs *number-of-cljs-repetitions*
+    10)
   (testing
       "Random roundtrip test for vectors."
-    (prop/for-all [l nested-vector store (gen-state)]
-      ;; Comment-in the followin form to see the forms that are tested.
-      #_(clojure.pprint/pprint l) 
-      (is (= (apply vm/->clojure (vm/->vm l [])) l)))))
-
+    (prop/for-all [v nested-vector store (gen-state)]
+      #_
+      (let [len (count (flatten v))]
+        (when (> len 1000)
+          (println "Vector length:" len)))
+      (is (= (apply vm/->clojure (vm/->vm v [])) v)))))
 
 (defspec ->clojure->vm-collection
-  (if *large-tests* #+clj 100 #+cljs 50 10)
+  (if *large-tests*
+    #+clj *number-of-clj-repetitions*
+    #+cljs *number-of-cljs-repetitions*
+    10)
   (testing
       "Random roundtrip test for vectors."
-    (prop/for-all [l nested-collection store (gen-state)]
-      ;; Comment-in the followin form to see the forms that are tested.
-      #_(clojure.pprint/pprint l) 
-      (is (= (apply vm/->clojure (vm/->vm l [])) l)))))
+    (prop/for-all [c nested-collection store (gen-state)]
+      #_
+      (let [len (count (flatten c))]
+        (when (> len 1000)
+          (println "Collection length:" len)))
+      (is (= (apply vm/->clojure (vm/->vm c [])) c)))))
 
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
