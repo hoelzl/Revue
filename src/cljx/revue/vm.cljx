@@ -74,19 +74,25 @@
 
 (defprotocol HeapObject
   "Datatypes that are stored on the heap."
-  (-address [this])
-  (-size [this]))
+  (-address [this store])
+  (-size [this store]))
 
 ;;; TODO: The ->clojure method may easily run out of stack space.
 (defrecord VmCons [address]
   StoredData
   (-->clojure [this store]
-    (cons (->clojure (store (:address this)) store)
-          (->clojure (store (inc (:address this))) store)))
+    (loop [h (store (:address this))
+           r (store (inc (:address this)))
+           acc ()]
+      (if (identical? r ())
+        (reverse (cons (->clojure h store) acc))
+        (recur (store (:address r))
+               (store (inc (:address r)))
+               (cons (->clojure h store) acc)))))
   HeapObject
-  (-address [this]
+  (-address [this store]
     (:address this))
-  (-size [this]
+  (-size [this store]
     2))
 
 (defn new-cons
@@ -105,9 +111,9 @@
                                (+ (:address this) (:size this)))]
             (->clojure (store address) store))))
   HeapObject
-  (-address [this]
+  (-address [this store]
     (:address this))
-  (-size [this]
+  (-size [this store]
     (:size this)))
 
 (defn new-vector
@@ -122,6 +128,18 @@
         new-store (into store contents)]
     [(->VmVector address size) new-store]))
 
+;;; To simplify the implementation we define a map as a reference to
+;;; an array consisting of key-value pairs.
+(defrecord VmMap [address]
+  StoredData
+  (-->clojure [this store]
+    (let [kv-array (->clojure (store (:address this)) store)]
+      (into {} kv-array)))
+  HeapObject
+  (-address [this store]
+    (:address this))
+  (-size [this store]
+    (-size (store (:address this)) store)))
 
 ;;; We define the ->clojure function as a wrapper around the protocol
 ;;; to avoid warnings from the ClojureScript compiler.  This is
