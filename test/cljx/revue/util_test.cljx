@@ -50,6 +50,6 @@
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
-;;; (clojure.test/run-tests 'revue.util-test)
+;;; (t/run-tests 'revue.util-test)
 ;;; Evaluate this to run the test for all namespaces:
-;;; (clojure.test/run-all-tests #"^revue\..*-test")
+;;; (t/run-all-tests #"^revue\..*-test")
