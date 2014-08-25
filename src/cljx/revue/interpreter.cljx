@@ -298,10 +298,9 @@
 
 (defn interp
   ([& forms]
-     (let [result (take @*interp-steps*
-                        (take-while
-                         (fn [{:keys [form cont value]}] (or form cont value))
-                         (iterate step (apply initial-state forms))))]
+     (let [result (take-while
+                   (fn [{:keys [form cont value]}] (or form cont value))
+                   (iterate step (apply initial-state forms)))]
        result)))
 
 
