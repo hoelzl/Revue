@@ -92,7 +92,10 @@
     (assoc state
       :form (:code this)
       :env (extend-env (:env this) (:params this) args)
-      :cont `((::reset-env ~(:env state)) ~@(:cont state)))))
+      :cont `((::reset-env ~(:env state)) ~@(:cont state))))
+  mem/StoredData
+  (-->clojure [this store]
+    this))
 
 ;;; A primitive procedure.  Its `code' is a Clojure function that
 ;;; should be invoked.  The `params' and `name' fields are as for
@@ -101,7 +104,10 @@
 (defrecord Prim [code params name]
   IProc
   (apply-proc [this args state]
-    ((:code this) args state)))
+    ((:code this) args state))
+  mem/StoredData
+  (-->clojure [this store]
+    this))
 
 (defn define-nary-global [name fun]
   (define-global name
@@ -126,6 +132,9 @@
 (define-binary-global '> >)
 (define-binary-global '<= <=)
 (define-binary-global '>= >=)
+
+(define-nary-global 'print print)
+(define-nary-global 'println println)
 
 ;;; A simple state-passing interpreter
 ;;; ==================================
@@ -155,11 +164,9 @@
 
 (defn initial-state
   "Create an initial state for the interpreter"
-  ([form]
-     (initial-state form (global-env)))
-  ([form env]
-     #_(->State form env (initial-store) nil nil)
-     {:form form :env env :store (initial-store)
+  ([& forms]
+     {:form (util/maybe-add 'begin forms)
+      :env (global-env) :store (initial-store)
       :cont nil :value nil}))
 
 ;;; TODO: Refactor this into multi-methods
@@ -178,7 +185,7 @@
      (assoc state :value nil))
    ;;
    (symbol? form)
-   (assoc state :form nil :value (get env form))
+   (assoc state :form nil :value (mem/->clojure (get env form) store))
    ;;
    (util/atomic? form)
    (assoc state :form nil :value form)
@@ -189,6 +196,18 @@
      ;; Quote
      quote
      (assoc state :form nil :value (rest form))
+     ;; Definitions
+     define
+     (let [[box new-store] (mem/new-box nil store)]
+       (assoc state
+         :form (nth form 2)
+         :env (assoc env (nth form 1) box)
+         :store new-store
+         :cont `((::define ~box) ~@cont)))
+     ::define
+     (assoc state
+       :form nil
+       :store (mem/box-set! value (nth form 1) store))
      ;; Sequence
      begin
      (cond
@@ -214,7 +233,7 @@
      ;; The continuation function for the `if' operator
      ::if
      (assoc state
-       :form (if value
+       :form (if (mem/->clojure value store)
                (nth form 1)
                (nth form 2)))
      ;; Function definition
@@ -239,7 +258,8 @@
          :cont `((::collect-arg ~(nth form 1) ~@(nthrest form 3)) ~@cont)))
      ::collect-arg
      (assoc state
-       :form `(::eval-args ~(conj (nth form 1) value) ~@(nthrest form 2)))
+       :form `(::eval-args ~(conj (nth form 1) value)
+                           ~@(nthrest form 2)))
      ::eval-proc
      (assoc state
        :form (nth form 1)
@@ -260,29 +280,48 @@
          :cont `((::eval-proc ~proc) ~@cont)
          :value [])))))
 
+(def ^:dynamic *run-n-steps* (atom 100))
+
 (defn run-n-steps
-  ([form]
-     (run-n-steps form 100))
-  ([form n]
-     (let [result (take n (take-while
-                           (fn [{:keys [form cont value]}] (or form cont value))
-                           (iterate step (initial-state form))))]
+  ([& forms]
+     (let [result (take @*run-n-steps*
+                        (take-while
+                         (fn [{:keys [form cont value]}] (or form cont value))
+                         (iterate step (apply initial-state forms))))]
        (clojure.pprint/pprint result)
        (last result))))
 
-(defn interp
-  ([form]
-     (interp form 100000))
-  ([form n]
-     (let [result (take n (take-while
-                           (fn [{:keys [form cont value]}] (or form cont value))
-                           (iterate step (initial-state form))))]
-       (dissoc (last result) :env))))
+(def ^:dynamic *interp-steps* (atom 100000))
 
-;;; Try for example the factorial function:
+(defn interp
+  ([& forms]
+     (let [result (take @*interp-steps*
+                        (take-while
+                         (fn [{:keys [form cont value]}] (or form cont value))
+                         (iterate step (apply initial-state forms))))]
+       result
+       #_(dissoc (last result) :env))))
+
+;;; Try the following examples:
 (comment
-  (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
-            (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 1000N))
+  (:value (last (interp '(+ 1 2))))
+  (:value (last (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
+                          (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 10))))
+  (:value (last (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
+                          (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 1000N))))
+  (:value (last (interp '(define x (+ 1 2))
+                        '(println x)
+                        '((lambda () (define x 2) (println x)))
+                        '(println x)
+                        'x)))
+  (:value (last (interp '(define f (lambda (n) n))
+                        '(f 1))))
+  (:value (last (interp '(define f (lambda (n) (if (>= n 1) f 1)))
+                        '(f 1))))
+  (:value (last (interp '(define fact (lambda (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
+                        '(fact 4))))
+  (:value (last (interp '(define fact (lambda (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
+                        '(fact 1000N))))
   )
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for

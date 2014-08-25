@@ -95,6 +95,31 @@
   (-address [this store])
   (-size [this store]))
 
+;;; References to opaque values on the heap.
+;;;
+(defrecord VmBox [address]
+  StoredData
+  (-->clojure [this store]
+    (store (:address this)))
+  HeapObject
+  (-address [this store]
+    (:address this))
+  (-size [this store]
+    1))
+
+(defn new-box
+  "Allocate a new VmBox cell.  The `value' parameter can be arbitrary
+  Clojure Data."
+  [value store]
+  (let [address (count store)
+        new-store (conj store value)]
+    [(->VmBox address) new-store]))
+
+(defn box-set!
+  "Change the value stored in a box"
+  [new-value box store]
+  (assoc store (-address box store) new-value))
+
 ;;; References to a cons cell on the heap, i.e., the stored value for
 ;;; lists.
 ;;;
