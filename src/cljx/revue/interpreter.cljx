@@ -167,17 +167,17 @@
       ;; continuation.
       (assoc state
         :form (nth form 1)
-        :cont (cons (cons 'begin (nthrest form 2)) (:cont state))))
+        :cont (cons (cons 'begin (nthrest form 2)) cont)))
      ;; If: Compute the condition and add a continuation that uses
      ;; this value to choose the correct branch.
      if
      (assoc state
        :form (nth form 1)
-       :cont (cons (cons ::if (nthrest form 2)) (:cont state)))
+       :cont (cons (cons ::if (nthrest form 2)) cont))
      ;; The continuation function for the `if' operator
      ::if
      (assoc state
-       :form (if (:value state)
+       :form (if value
                (nth form 1)
                (nth form 2)))
      ;; Function definition
@@ -194,31 +194,36 @@
      ::eval-args
      (if (empty? (nthrest form 2)) ;; TODO: Check that new form evaluates function?
        (assoc state
-         :form (first (:cont state))
-         :cont (next (:cont state))
+         :form (first cont)
+         :cont (next cont)
          :value (nth form 1))
        (assoc state
          :form (nth form 2)
-         :cont `((::collect-arg ~(nth form 1) ~@(nthrest form 3)) ~@(:cont state))))
+         :cont `((::collect-arg ~(nth form 1) ~@(nthrest form 3)) ~@cont)))
      ::collect-arg
      (assoc state
-       :form `(::eval-args ~(conj (nth form 1) (:value state)) ~@(nthrest form 2)))
+       :form `(::eval-args ~(conj (nth form 1) value) ~@(nthrest form 2)))
      ::eval-proc
      (assoc state
        :form (nth form 1)
-       :cont `((::apply ~(:value state)) ~@(:cont state)))
+       :cont `((::apply ~value) ~@cont))
      ::apply
      ;; TODO: Need to handle primitive procedures; define protocol for
      ;; application
-     (let [proc (:value state)
+     (let [proc value
            [_ args] form]
        (assoc state
          :form (:code proc)
-         :env (extend-env (:env proc) (:params proc) (nth form 1))))
+         :env (extend-env (:env proc) (:params proc) (nth form 1))
+         :cont `((::reset-env ~env) ~@cont)))
+     ::reset-env
+     (assoc state
+       :form nil
+       :env (nth form 1))
      (let [[proc & args] form]
        (assoc state
          :form `(::eval-args [] ~@args)
-         :cont `((::eval-proc ~proc) ~@(:cont state))
+         :cont `((::eval-proc ~proc) ~@cont)
          :value [])))))
 
 (defn run-n-steps
