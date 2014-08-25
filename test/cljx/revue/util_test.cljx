@@ -25,6 +25,31 @@
     (is (= (with-out-str (util/warn "Hi!")) "REVUE Warning: Hi!\n"))
     (is (= (with-out-str (util/warn "Foo" "Bar")) "Foo Bar\n"))))
 
+(deftest singleton-01
+  (testing "Test the `singleton' function."
+    (is (not (util/singleton? [])))
+    (is (not (util/singleton? ())))
+    (is (not (util/singleton? {})))
+    (is (not (util/singleton? #{})))
+    (is (util/singleton? [:a]))
+    (is (util/singleton? [123]))
+    (is (util/singleton? '(:a)))
+    (is (util/singleton? {:a 1}))
+    (is (util/singleton? #{:a}))
+    (is (not (util/singleton? [:a :b])))
+    (is (not (util/singleton? '(:a :b))))
+    (is (not (util/singleton? {:a 1, :b 2})))
+    (is (not (util/singleton? #{:a :b})))))
+
+(deftest maybe-add-01
+  (testing "Test the `maybe-add' function."
+    (is (= (util/maybe-add 'begin ())) false)
+    (is (= (util/maybe-add 'begin () :foobar)) :foobar)
+    (is (= (util/maybe-add 'begin '(1))) 1)
+    (is (= (util/maybe-add 'begin '((+ 1 2 3)))) '(+ 1 2 3))
+    (is (= (util/maybe-add 'begin '((print x) (+ x 1)))
+           '(begin (print x) (+ x 1))))))
+
 (deftest boolean?-01
   (testing "Test the `boolean?' function."
     (is (util/boolean? true))
