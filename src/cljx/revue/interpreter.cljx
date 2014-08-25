@@ -92,7 +92,7 @@
     (assoc state
       :form (:code this)
       :env (extend-env (:env this) (:params this) args)
-      :cont `((::reset-env ~(:env state)) ~@(:cont state))))
+      :cont `((::return-from-call ~(:env state)) ~@(:cont state))))
   mem/StoredData
   (-->clojure [this store]
     this))
@@ -270,7 +270,7 @@
      (let [proc value
            [_ args] form]
        (apply-proc proc args state))
-     ::reset-env
+     ::return-from-call
      (assoc state
        :form nil
        :env (nth form 1))
@@ -299,12 +299,66 @@
                         (take-while
                          (fn [{:keys [form cont value]}] (or form cont value))
                          (iterate step (apply initial-state forms))))]
-       result
-       #_(dissoc (last result) :env))))
+       result)))
+
+
+;;; Functions for cleaning up the interpreter trace
+;;; ===============================================
+
+(defn recursively-remove-global-vars-in [d]
+  (cond
+   (map? d)
+   (into {}
+         (map (fn [[k v]]
+                (if (= k :env)
+                  (let [genv (global-env)]
+                    [k (into {} (keep (fn [[k1 v1]]
+                                        (if (contains? genv k1)
+                                          nil
+                                          [k1 (recursively-remove-global-vars-in v1)]))
+                                      v))])
+                  [k (recursively-remove-global-vars-in v)]))
+              d))
+   (or (sequential? d))
+   (if (= (first d) ::return-from-call)
+     ::return-from-call
+     (map recursively-remove-global-vars-in d))
+   :else
+   d))
+
+(defn remove-global-vars
+  "Removes all values from environments in a seq of states that are
+  defined in the global environment.  Does not take into account redefinitions!"
+  [states]
+  (map recursively-remove-global-vars-in states))
+
+(def *internal-ops* #{::eval-args ::collect-arg ::eval-proc})
+
+(defn remove-internal-forms
+  "Removes all forms that don't evaluate user code."
+  [states]
+  (keep (fn [{:keys [form] :as state}]
+          (if (or (nil? form)
+                  (and (sequential? form) (contains? *internal-ops* (first form))))
+            nil
+            state))
+        states))
+
+(defn remove-continuations
+  "Removes all continuations from states."
+  [states]
+  (map #(dissoc %1 :cont) states))
+
+(def cleanup-trace (comp remove-global-vars remove-internal-forms remove-continuations))
+
 
 ;;; Try the following examples:
 (comment
   (:value (last (interp '(+ 1 2))))
+  (clojure.pprint/pprint
+   (cleanup-trace
+    (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
+              (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 3))))
   (:value (last (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
                           (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 10))))
   (:value (last (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
@@ -318,6 +372,10 @@
                         '(f 1))))
   (:value (last (interp '(define f (lambda (n) (if (>= n 1) f 1)))
                         '(f 1))))
+  (clojure.pprint/pprint
+   (cleanup-trace
+    (interp '(define fact (lambda (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
+            '(fact 4))))
   (:value (last (interp '(define fact (lambda (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
                         '(fact 4))))
   (:value (last (interp '(define fact (lambda (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
