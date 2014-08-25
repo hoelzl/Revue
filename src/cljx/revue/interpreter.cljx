@@ -29,6 +29,18 @@
   [msg]
   (util/warn "Interpreter warning:" msg))
 
+#+cljs
+(defn nthrest [coll n]
+  (if (zero? n)
+    coll
+    (recur (rest coll) (dec n))))
+
+(defn pprint [obj]
+  #+clj
+  (clojure.pprint/pprint obj)
+  #+cljs
+  (println obj))
+
 ;;; Environments for the interpreter
 ;;; ================================
 
@@ -291,7 +303,7 @@
                         (take-while
                          (fn [{:keys [form cont value]}] (or form cont value))
                          (iterate step (apply initial-state forms))))]
-       (clojure.pprint/pprint result)
+       (pprint result)
        (last result))))
 
 (def ^:dynamic *interp-steps* (atom 100000))
@@ -357,7 +369,7 @@
 ;;; Try the following examples:
 (comment
   (:value (last (interp '(+ 1 2))))
-  (clojure.pprint/pprint
+  (pprint
    (cleanup-trace
     (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
               (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 3))))
@@ -374,7 +386,7 @@
                         '(f 1))))
   (:value (last (interp '(define f (lambda (n) (if (>= n 1) f 1)))
                         '(f 1))))
-  (clojure.pprint/pprint
+  (pprint
    (cleanup-trace
     (interp '(define fact (lambda (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
             '(fact 4))))
