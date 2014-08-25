@@ -198,16 +198,19 @@
      (assoc state :form nil :value (rest form))
      ;; Definitions
      define
-     (let [[box new-store] (mem/new-box nil store)]
+     (let [[box new-store] (mem/new-box nil store)
+           name (nth form 1)]
        (assoc state
          :form (nth form 2)
-         :env (assoc env (nth form 1) box)
+         :env (assoc env name box)
          :store new-store
-         :cont `((::define ~box) ~@cont)))
+         :cont `((::define ~name ~box) ~@cont)))
      ::define
      (assoc state
        :form nil
-       :store (mem/box-set! value (nth form 1) store))
+       :store (mem/box-set! (if (instance? Proc value)
+                              (assoc value :name (nth form 1))
+                              value) (nth form 2) store))
      ;; Sequence
      begin
      (cond
@@ -332,7 +335,7 @@
   [states]
   (map recursively-remove-global-vars-in states))
 
-(def *internal-ops* #{::eval-args ::collect-arg ::eval-proc})
+(def ^:dynamic *internal-ops* #{::eval-args ::collect-arg ::eval-proc})
 
 (defn remove-internal-forms
   "Removes all forms that don't evaluate user code."
