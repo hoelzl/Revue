@@ -71,24 +71,61 @@
 ;;; Procedures for the interpreter
 ;;; ===============================
 
-;;; We define a protocol that specifies how the interpreter handles
-;;; procedures, and record types for representing interpreted
+;;; We define a protocol IProc that specifies how the interpreter
+;;; handles procedures, and record types for representing interpreted
 ;;; procedures as well as primitive procedures.
 
-;;; TODO Protocol
+(defprotocol IProc
+  "Procedures that can be invoked by the interpreter"
+  (apply-proc [this args state]
+    "Apply the procedure to `args' and `state', and return a new
+    state"))
 
 ;;; An interpreted procedure.  Its `code' is the source code to be
 ;;; interpreted; `params' is a list of parameter names; `name' is the
 ;;; name of the procedure (as clojure symbol), or `nil' if the
 ;;; procedure is anonymous.
 ;;;
-(defrecord Proc [code env params name])
+(defrecord Proc [code env params name]
+  IProc
+  (apply-proc [this args state]
+    (assoc state
+      :form (:code this)
+      :env (extend-env (:env this) (:params this) args)
+      :cont `((::reset-env ~(:env state)) ~@(:cont state)))))
 
 ;;; A primitive procedure.  Its `code' is a Clojure function that
-;;; should be invoked.  The `name' and `params' fields are as for
+;;; should be invoked.  The `params' and `name' fields are as for
 ;;; `Proc'
 ;;;
-(defrecord Prim [code name params])
+(defrecord Prim [code params name]
+  IProc
+  (apply-proc [this args state]
+    ((:code this) args state)))
+
+(defn define-nary-global [name fun]
+  (define-global name
+    (->Prim (fn [args state]
+              (assoc state :form nil :value (apply fun args)))
+            '[& args]
+            name)))
+
+(defn define-binary-global [name fun]
+  (define-global name
+    (->Prim (fn [args state]
+              (assoc state :form nil :value (apply fun args)))
+            '[x y]
+            name)))
+
+(define-nary-global '+ +)
+(define-nary-global '- -)
+(define-nary-global '* *)
+(define-nary-global '/ /)
+
+(define-binary-global '< <)
+(define-binary-global '> >)
+(define-binary-global '<= <=)
+(define-binary-global '>= >=)
 
 ;;; A simple state-passing interpreter
 ;;; ==================================
@@ -212,10 +249,7 @@
      ;; application
      (let [proc value
            [_ args] form]
-       (assoc state
-         :form (:code proc)
-         :env (extend-env (:env proc) (:params proc) (nth form 1))
-         :cont `((::reset-env ~env) ~@cont)))
+       (apply-proc proc args state))
      ::reset-env
      (assoc state
        :form nil
@@ -230,10 +264,26 @@
   ([form]
      (run-n-steps form 100))
   ([form n]
-     (clojure.pprint/pprint
-      (take n (take-while
-               (fn [{:keys [form cont value]}] (or form cont value))
-               (iterate step (initial-state form)))))))
+     (let [result (take n (take-while
+                           (fn [{:keys [form cont value]}] (or form cont value))
+                           (iterate step (initial-state form))))]
+       (clojure.pprint/pprint result)
+       (last result))))
+
+(defn interp
+  ([form]
+     (interp form 100000))
+  ([form n]
+     (let [result (take n (take-while
+                           (fn [{:keys [form cont value]}] (or form cont value))
+                           (iterate step (initial-state form))))]
+       (dissoc (last result) :env))))
+
+;;; Try for example the factorial function:
+(comment
+  (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
+            (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 1000N))
+  )
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
