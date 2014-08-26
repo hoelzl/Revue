@@ -1,27 +1,5 @@
 (defproject revue "0.0.1-SNAPSHOT"
-  :description "# REVersible User Experiences
-
-*REVUE* is an interpreter/virtual machine that returns a trace of a
-program's execution.  This trace can be used for visualizing the inner
-workings of a program, animating algorithms, etc.
-
-More precisely, `step`, the central function of *REVUE* interprets a
-Scheme-like intermediate language by taking a program state consisting
-of
-
-* a form to be evaluated,
-* an environment
-* a store
-* a continuation
-* the value of the previous step
-
-and returning a new state of the same form.  To evaluate the program,
-we can then simply iterate the `step` function to obtain an infinite
-sequence of states.  (Calling `step` with the final state of a
-terminating computation simply returns the same state again.)  For
-visualizing terminating algorithms, a convenience function `interp` is
-provided that runs the VM to completion and returns the resulting
-seqence of states."
+  :description "REVUE: REVersible User Experiences"
   
   :url "https://github.com/hoelzl/Revue"
   
