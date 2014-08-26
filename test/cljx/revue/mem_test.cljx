@@ -144,6 +144,12 @@
     (prop/for-all [s gen/string]
       (is (= (mem/->clojure s) s)))))
 
+(deftest vm-box-01
+  (testing "Create VmBox instances."
+    (let [[vm-box state] (mem/new-box 1 [])]
+      (is (= (:address vm-box) 0))
+      (is (= state [1])))))
+
 (deftest vm-cons-01
   (testing "Create VmCons instances."
     (let [[vm-cons state] (mem/new-cons [1 ()] [])]
@@ -316,7 +322,7 @@
 (defspec ->vm-string-tc
   100
   (testing
-      "Random tests for conversion of represeented strings to the VM format1."
+      "Random tests for conversion of represeented strings to the VM format."
     (prop/for-all [s gen/string]
       (is (= (mem/->vm s) [s []])))))
 
@@ -390,6 +396,27 @@
         (clojure.pprint/pprint c)
         (flush))
       (is (= (apply mem/->clojure (mem/->vm c [])) c)))))
+
+(defspec ->clojure->vm-box-01
+  (if *large-tests* *large-number-of-repetitions* 10)
+  (testing "Random roundtrip test for boxes."
+    (prop/for-all [d gen/string store (gen-state)]
+      (let [[vm-val store] (mem/->vm d [])]
+        (is (= (apply mem/->clojure (mem/new-box vm-val store)) d))))))
+
+(defspec ->clojure->vm-box-02
+  (if *large-tests* *large-number-of-repetitions* 10)
+  (testing "Random roundtrip test for boxes."
+    (prop/for-all [d gen/int store (gen-state)]
+      (let [[vm-val store] (mem/->vm d [])]
+        (is (= (apply mem/->clojure (mem/new-box vm-val store)) d))))))
+
+(defspec ->clojure->vm-box-03
+  (if *large-tests* *large-number-of-repetitions* 10)
+  (testing "Random roundtrip test for boxes."
+    (prop/for-all [d nested-collection store (gen-state)]
+      (let [[vm-val store] (mem/->vm d [])]
+        (is (= (apply mem/->clojure (mem/new-box vm-val store)) d))))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

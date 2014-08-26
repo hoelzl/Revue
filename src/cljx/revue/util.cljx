@@ -12,9 +12,9 @@
 ;;; the `error` and `warning` functions.  Later we will have to
 ;;; add a better error-handling protocol.
 
-;;; @MargDisable
+;;; <!--
 ;;; TODO: Replace these functions with more useful implementations
-;;; @MargEnable
+;;; -->
 
 (defn error
   "The `error` function is a simple wrapper around `throw` that
@@ -27,7 +27,10 @@
 
 
 
-(def ^:dynamic *print-warnings* true)
+(def ^:dynamic *print-warnings*
+  "If `*print-warnings*` is truthy, warning messages are printed to
+  standard output, otherwise warnings are ignored."
+  true)
 
 (defn warn
   "The `warn` function in the `revue.util` module prints a message to
@@ -46,8 +49,8 @@
 ;;; =======================
 
 (defn singleton?
-  "Returns true iff `coll` contains exactly one element, 
-i.e., (singleton? x) is always equivalent to (= (count x) 1)"
+  "Returns true iff `coll` contains exactly one element,
+  i.e., `(singleton? x)` is always equivalent to `(= (count x) 1)`"
   [coll]
   (and (not (empty? coll))
        (not (next coll))))
@@ -69,13 +72,15 @@ i.e., (singleton? x) is always equivalent to (= (count x) 1)"
 ;;; by the VM.
 
 (defn boolean?
-  "Returns true if `x` is either `true` or `false`, false otherwise."
+  "Returns true if `x` is either `true` or `false`, false otherwise.
+  This is needed for choosing the correct representation in the memory
+  subsystem."
   [x]
   (or (= x true) (= x false)))
 
 (defn atomic?
-  "Returns true if `d` can be represented without storage on the
-  heap."
+  "Returns true if `d` can be represented without comsuming storage on
+  the heap."
   [d]
   (cond
    (boolean? d) true
@@ -86,9 +91,11 @@ i.e., (singleton? x) is always equivalent to (= (count x) 1)"
    (identical? d ()) true
    :else false))
 
+;;; <!--
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
 ;;; (clojure.test/run-tests 'revue.util-test)
 ;;; Evaluate this to run the test for all namespaces:
 ;;; (clojure.test/run-all-tests #"^revue\..*-test")
+;;; -->
 

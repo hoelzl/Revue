@@ -1,6 +1,6 @@
-;;; The memory subsystem
 
 (ns revue.mem
+  "The memory subsystem for interpreters and the VM"
   (:require [revue.util :as util]))
 
 ;;; Storage for Interpreters and the VM
@@ -9,7 +9,7 @@
 ;;; Since we want to be able to move forward and backward in time,
 ;;; between arbitrary points in the execution of the VM, we cannot
 ;;; mutate storage.  Therefore we implement a small-step semantics
-;;; of VM instructions in a store-passing VM.
+;;; of an interpreter or VM and pass around an explicit store.
 
 ;;; As a first step we map the expressed data values (which are just
 ;;; Clojure data structures) into an internal representation (the
@@ -37,15 +37,16 @@
 ;;; Booleans, numbers, symbols, keywords, strings, references to
 ;;; lists, references to vectors, and references to maps.
 
-;;; The important functions are `->vm' for converting a represented
+;;; The important functions are `->vm` for converting a represented
 ;;; value into a stored value (i.e., for converting a Clojure datum
 ;;; into its internal representation in the VM (and the interpreter),
-;;; and `->clojure' for getting back a Clojure value from the VM's
+;;; and `->clojure` for getting back a Clojure value from the VM's
 ;;; internal representation.  These two functions are mostly inverse
-;;; to each other; #(apply ->clojure (->vm %)) is always the identity
-;;; (unless there is a bug in the implementation of the conversion);
-;;; the other direction, #(->vm (->clojure %1 %2) []), might result in
-;;; a different state than the one that was originally passed in.
+;;; to each other; `#(apply ->clojure (->vm %))` is always the
+;;; identity (unless there is a bug in the implementation of the
+;;; conversion); the other direction, `#(->vm (->clojure %1 %2) [])`,
+;;; might result in a different state than the one that was originally
+;;; passed in.
 
 ;;; In the conversion to Clojure, information about sharing in the
 ;;; data is lost.  Some amount of loss is unavoidable, since Clojure
@@ -58,13 +59,13 @@
 
 (defprotocol StoredData
   "Datatypes that are understood by the VM.  The conversion
-  `-->clojure' always returns a clojure value that implements the
-  ExpressedData protocol and can therefore be turned back into a
-  StoredData value."
+  `-->clojure` always returns a Clojure value that implements the
+  `ExpressedData` protocol and can therefore be turned back into a
+  `StoredData` value."
   (-->clojure [this store]))
 
-;;; The `->clojure' function (defined below) is a simple wrapper
-;;; around `-->clojure' that mostly serves to avoid warnings from
+;;; The `->clojure` function (defined below) is a simple wrapper
+;;; around `-->clojure` that mostly serves to avoid warnings from
 ;;; ClojureScript, but also makes the `store` argument optional for a
 ;;; slightly better interactive experience.
 ;;;
@@ -85,9 +86,10 @@
   (-->clojure [this store] ()))
 
 (defprotocol HeapObject
-  "Datatypes that are stored on the heap.
+  "Datatypes that are stored on the heap implement the `HeapObject`
+  protocol.
 
-  HeapObjects can always report the address where they are stored on
+  `HeapObject`s can always report the address where they are stored on
   the heap and their size.  It is not quite clear yet, what the
   `-size` method should report for objects which do not occupy
   contiguous regions of heap space, so the definition of the size
@@ -95,12 +97,23 @@
   (-address [this store])
   (-size [this store]))
 
-;;; References to opaque values on the heap.
+;;; A `VmBox` is a data type for stored values that references a
+;;; single value on the heap.  This can be used obtain a level of
+;;; indirection that is necessary to store atomic values in mutable
+;;; variables.  For example, a function parameter that is referenced
+;;; by an escaping closure inside the function body and whose binding
+;;; can be destructively modified has to be stored in a box to ensure
+;;; that the closure sees the modified value.  Therefore, in the
+;;; following Pseudo-Scheme code `x` has to be boxed:
+;;;
+;;;     (lambda (x)
+;;;       (list (lambda (y) (set! x y))
+;;;             (lambda () x)))
 ;;;
 (defrecord VmBox [address]
   StoredData
   (-->clojure [this store]
-    (store (:address this)))
+    (->clojure (store (:address this)) store))
   HeapObject
   (-address [this store]
     (:address this))
@@ -108,8 +121,8 @@
     1))
 
 (defn new-box
-  "Allocate a new VmBox cell.  The `value` parameter can be arbitrary
-  Clojure Data."
+  "Allocate a new `VmBox` cell.  The `value` parameter should be a
+  stored value."
   [value store]
   (let [address (count store)
         new-store (conj store value)]
@@ -125,8 +138,8 @@
 ;;;
 (defrecord VmCons [address]
   StoredData
-  ;; A naive implementation of `-->clojure' would be to cons together
-  ;; applications of `->clojure' to the two fields of the cons cell.
+  ;; A naive implementation of `-->clojure` would be to cons together
+  ;; applications of `->clojure` to the two fields of the cons cell.
   ;; Since we don't want to run out of stack space for larger list, we
   ;; have to implement a more complex version.  Note that the current
   ;; implementation only allows proper lists, i.e., you cannot use
@@ -228,7 +241,7 @@
   (-->vm [this store]))
 
 
-;;; A wrapper around the `-->vm' protocol method, to avoid warnings
+;;; A wrapper around the `-->vm` protocol method, to avoid warnings
 ;;; from ClojureScript.
 ;;;
 (declare ->vm)
