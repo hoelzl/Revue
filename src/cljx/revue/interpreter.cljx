@@ -49,10 +49,10 @@
 ;;; We define function to create and update the global environment
 ;;; which are used to initialize the interpreter.  The interpreter
 ;;; only uses one non-standard function for manipulating environment:
-;;; `extend-env' is called when a new lexical scope is entered and
+;;; `extend-env` is called when a new lexical scope is entered and
 ;;; returns the previous environment extended with the new bindings.
-;;; To update the environment we simply use `assoc', to look up values
-;;; we use `get'.
+;;; To update the environment we simply use `assoc`, to look up values
+;;; we use `get`.
 
 (defn empty-env
   "Returns an empty environment."
@@ -62,7 +62,7 @@
 (def ^:dynamic *initial-bindings* (atom {}))
 
 (defn clear-initial-bindings
-  "Set the value of `*initial-bindings*' to the empty map."
+  "Set the value of `*initial-bindings*` to the empty map."
   []
   (reset! *initial-bindings* {}))
 
@@ -90,12 +90,12 @@
 (defprotocol IProc
   "Procedures that can be invoked by the interpreter"
   (apply-proc [this args state]
-    "Apply the procedure to `args' and `state', and return a new
+    "Apply the procedure to `args` and `state`, and return a new
     state"))
 
-;;; An interpreted procedure.  Its `code' is the source code to be
-;;; interpreted; `params' is a list of parameter names; `name' is the
-;;; name of the procedure (as clojure symbol), or `nil' if the
+;;; An interpreted procedure.  Its `code` is the source code to be
+;;; interpreted; `params` is a list of parameter names; `name` is the
+;;; name of the procedure (as clojure symbol), or `nil` if the
 ;;; procedure is anonymous.
 ;;;
 (defrecord Proc [code env params name]
@@ -109,9 +109,9 @@
   (-->clojure [this store]
     this))
 
-;;; A primitive procedure.  Its `code' is a Clojure function that
-;;; should be invoked.  The `params' and `name' fields are as for
-;;; `Proc'
+;;; A primitive procedure.  Its `code` is a Clojure function that
+;;; should be invoked.  The `params` and `name` fields are as for
+;;; `Proc`
 ;;;
 (defrecord Prim [code params name]
   IProc
@@ -151,7 +151,7 @@
 ;;; A simple state-passing interpreter
 ;;; ==================================
 
-;;; The core of the simple interpreter is a function `step' that
+;;; The core of the simple interpreter is a function `step` that
 ;;; performs one step of the evaluation process.  It operates on an
 ;;; iterpreter state that contains all information required by the
 ;;; interpreter; i.e., its sole argument is an interpreter state and
@@ -245,7 +245,7 @@
      (assoc state
        :form (nth form 1)
        :cont (cons (cons ::if (nthrest form 2)) cont))
-     ;; The continuation function for the `if' operator
+     ;; The continuation function for the `if` operator
      ::if
      (assoc state
        :form (if (mem/->clojure value store)

@@ -65,7 +65,7 @@
 
 ;;; The `->clojure' function (defined below) is a simple wrapper
 ;;; around `-->clojure' that mostly serves to avoid warnings from
-;;; ClojureScript, but also makes the `store' argument optional for a
+;;; ClojureScript, but also makes the `store` argument optional for a
 ;;; slightly better interactive experience.
 ;;;
 (declare ->clojure)
@@ -89,7 +89,7 @@
 
   HeapObjects can always report the address where they are stored on
   the heap and their size.  It is not quite clear yet, what the
-  `-size' method should report for objects which do not occupy
+  `-size` method should report for objects which do not occupy
   contiguous regions of heap space, so the definition of the size
   might change in the future."
   (-address [this store])
@@ -108,7 +108,7 @@
     1))
 
 (defn new-box
-  "Allocate a new VmBox cell.  The `value' parameter can be arbitrary
+  "Allocate a new VmBox cell.  The `value` parameter can be arbitrary
   Clojure Data."
   [value store]
   (let [address (count store)
@@ -147,7 +147,7 @@
     2))
 
 (defn new-cons
-  "Allocate a new VmCons cell.  The `car' and `cdr' parameters have to
+  "Allocate a new VmCons cell.  The `car` and `cdr` parameters have to
   be StoredData."
   [[car cdr] store]
   (let [address (count store)
@@ -281,7 +281,7 @@
   #+clj
   (-->vm [this store]
     (->vm (vector (first this) (second this)) store))
-  ;; We need both `PersistentArrayMap' and `PersistentHashMap' since
+  ;; We need both `PersistentArrayMap` and `PersistentHashMap` since
   ;; literal maps give rise to both types, depending on their size.
   #+clj clojure.lang.PersistentArrayMap #+cljs cljs.core/PersistentArrayMap
   (-->vm [this store]
