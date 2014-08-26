@@ -22,7 +22,9 @@ terminating computation simply returns the same state again.)  For
 visualizing terminating algorithms, a convenience function `interp` is
 provided that runs the VM to completion and returns the resulting
 seqence of states."
-  :url "http://w18g.de/revue"
+  
+  :url "https://github.com/hoelzl/Revue"
+  
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
