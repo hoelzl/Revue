@@ -5,6 +5,12 @@
   
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :pom-addition [:developers [:developer
+                              [:id "mhoelzl"]
+                              [:name "Matthias Hoelzl"]
+                              [:url "https://github.com/hoelzl"]
+                              [:email "tc@xantira.com"]]]
+  :repositories [["local" "file:///Users/tc/.m2/repository"]]
 
   :jar-exclusions [#"\.cljx|\.swp|\.swo|\.DS_Store"]
   :source-paths ["src/cljx"]
@@ -44,4 +50,4 @@
                                           "cljsbuild" "test"]
                              "jtest" ["do" "cljx" "once," "test"]
                              "jstest" ["do" "cljx" "once," "cljsbuild" "test"]
-                             "deploy" ["do" "clean," "cljx" "once," "deploy" "clojars"]}}})
+                             "deploy!" ["do" "clean," "cljx" "once," "deploy" "clojars"]}}})
