@@ -16,7 +16,7 @@
   :source-paths ["src/cljx"]
   :test-paths ["target/test-classes"]
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/clojurescript "0.0-2311"]]
+                 [org.clojure/clojurescript "0.0-2322"]]
 
   :cljx {:builds [{:source-paths ["src/cljx"]
                    :output-path "target/classes"
@@ -33,6 +33,8 @@
                   {:source-paths ["test/cljx"]
                    :output-path "target/test-classes"
                    :rules :cljs}]}
+
+  :hooks [cljx.hooks]
 
   :cljsbuild {:test-commands {"node" ["node" :node-runner "target/testable.js"]}
               :builds [{:source-paths ["target/classes" "target/test-classes"]
