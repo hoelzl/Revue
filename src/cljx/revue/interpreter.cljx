@@ -1,41 +1,54 @@
-;;; Interpreters using the memory subsystem
-
-;;; This file contains experimental interpreters that use the memory
-;;; subsystem.  I write these interpreters to try the memory subsystem
-;;; in a more realistic context than the unit tests.
-
-;;; Currently I'm thinking of implementing a simple
-;;; continuation-passing interpreter (that, obviously, also has to be
-;;; a storage-passing interpreter).  I'm not sure whether to implement
-;;; mutable variables in this interpreter, since this would mean that
-;;; all parameters have to be boxed and passed on the heap.  And since
-;;; we never release storage on the heap this would probably
-;;; prohibitively wasteful.  In a compiler we can avoid this by
-;;; performing a closure analysis pass.  Of course, the "interpreters"
-;;; could also use a preprocessing pass that performs these kinds of
-;;; analysis, but then the interpreters would mutate into compilers
-;;; with a different IR.  That's not really the current plan, but
-;;; we'll see how things work out.  --tc
 
 (ns revue.interpreter
+  "A continuation- and state-passing interpreter using the memory
+  subsystem."
   (:require [revue.util :as util]
             [revue.mem :as mem]))
+
+;;; This namespace contains an experimental interpreter that uses the
+;;; memory subsystem, so that I can
+
+;;; * try out the memory subsystem in a more realistic context than
+;;;   the unit tests.
+;;; * figure out how exactly the internal representatio used for
+;;;   visualizatons and animations should look like; in particular how
+;;;   continuations should be represented.
+
+;;; The current implementations is a simple continuation-passing
+;;; interpreter (that, obviously, also has to be a storage-passing
+;;; interpreter).  Currently only variables defined with `define`
+;;; should be destructively modified, function parameters and
+;;; variables bound with `let` are not boxed; modifying them may lead
+;;; to strange behavior if their values escape their lexical context.
+;;; Function parameters are unboxed so that we don't have to allocate
+;;; heap storage for every function call and are therefore properly
+;;; tail recursive.  We could avoid this by pre-processing the source
+;;; and performing a closure analysis pass. 
+
 
 ;;; Utilities
 ;;; =========
 
 (defn warn
-  "Warn about a problem encountered by an interpreter."
+  "Warn about a problem encountered by the interpreter."
   [msg]
   (util/warn "Interpreter warning:" msg))
 
 #+cljs
-(defn nthrest [coll n]
+(defn nthrest
+  "Take the `n`th rest of `coll`.  Missing from ClojureScript because
+  of an oversight.  Can be removed once this is fixed in
+  ClojureScript."
+  [coll n]
   (if (zero? n)
     coll
     (recur (rest coll) (dec n))))
 
-(defn pprint [obj]
+(defn pprint
+  "The `clojure.pprint` namespace is not yet ported to ClojureScript.
+  Define a workaround while this is the case, use `clojure.pprint`
+  once the implementation is done."
+  [obj]
   #+clj
   (clojure.pprint/pprint obj)
   #+cljs
@@ -44,15 +57,15 @@
 ;;; Environments for the interpreter
 ;;; ================================
 
-;;; The interpreters use a simple Clojure map as environment.
+;;; The interpreter uses a simple Clojure map as environment.
 
-;;; We define function to create and update the global environment
+;;; We define functions to create and update the global environment
 ;;; which are used to initialize the interpreter.  The interpreter
 ;;; only uses one non-standard function for manipulating environment:
 ;;; `extend-env` is called when a new lexical scope is entered and
 ;;; returns the previous environment extended with the new bindings.
 ;;; To update the environment we simply use `assoc`, to look up values
-;;; we use `get`.
+;;; we use `get` (or one of its alternatives).
 
 (defn empty-env
   "Returns an empty environment."
@@ -83,9 +96,10 @@
 ;;; Procedures for the interpreter
 ;;; ===============================
 
-;;; We define a protocol IProc that specifies how the interpreter
-;;; handles procedures, and record types for representing interpreted
-;;; procedures as well as primitive procedures.
+;;; The protocol `IProc` specifies how the interpreter handles
+;;; procedures.  We define one record type implementing that protocol
+;;; for interpreted procedures and one for primitive procedures that
+;;; are written in Clojure and executed in a single step.
 
 (defprotocol IProc
   "Procedures that can be invoked by the interpreter"
@@ -95,7 +109,7 @@
 
 ;;; An interpreted procedure.  Its `code` is the source code to be
 ;;; interpreted; `params` is a list of parameter names; `name` is the
-;;; name of the procedure (as clojure symbol), or `nil` if the
+;;; name of the procedure (as Clojure symbol), or `nil` if the
 ;;; procedure is anonymous.
 ;;;
 (defrecord Proc [code env params name]
@@ -121,19 +135,30 @@
   (-->clojure [this store]
     this))
 
-(defn define-nary-global [name fun]
+(defn define-nary-global
+  "A utility function that defines a primitive procedure that can take
+  an arbitrary number of arguments and stores it in the global
+  environment."
+  [name fun]
   (define-global name
     (->Prim (fn [args state]
               (assoc state :form nil :value (apply fun args)))
             '[& args]
             name)))
 
-(defn define-binary-global [name fun]
+(defn define-binary-global
+  "A utility function that defines a primitive procedure that takes
+  exactly two arguments and stores it in the global environment."
+  [name fun]
   (define-global name
     (->Prim (fn [args state]
               (assoc state :form nil :value (apply fun args)))
             '[x y]
             name)))
+
+;;; We can now define the primitive functions that should be in the
+;;; default environment.
+;;; 
 
 (define-nary-global '+ +)
 (define-nary-global '- -)
@@ -145,8 +170,27 @@
 (define-binary-global '<= <=)
 (define-binary-global '>= >=)
 
-(define-nary-global 'print print)
-(define-nary-global 'println println)
+;;; We handle functions with (non-memory) effects by pushing the
+;;; effects onto the `:effects` slot of the state.  This allows the
+;;; visualization to show the effects in any manner it wants.
+
+(define-global 'print
+  (->Prim
+   (fn [args state]
+     (assoc state
+       :form nil
+       :effects (conj (:effects state) `(:print ~args))))
+   '[&args]
+   'print))
+
+(define-global 'println
+  (->Prim
+   (fn [args state]
+     (assoc state
+       :form nil
+       :effects (conj (:effects state) `(:println ~args))))
+   '[&args]
+   'println))
 
 ;;; A simple state-passing interpreter
 ;;; ==================================
@@ -158,18 +202,20 @@
 ;;; its result is again an interpreter state.
 
 ;;; The state contains the following elements:
+;;;
 ;;; * the form to be executed
 ;;; * the environment for the form
 ;;; * the store
 ;;; * a continuation
-;;; * The value returned by the previous evaluation step
+;;; * the value returned by the previous evaluation step
+;;; * the effects encountered so far 
 
 ;;; Not sure whether that is a good idea, since we want to share as
 ;;; much data as possible, and introducing a record will probably
 ;;; store each state in a fresh object.
 ;;; TODO: check this
 ;;;
-#_(defrecord State [form env store cont value])
+#_(defrecord State [form env store cont value effects])
 
 (defn initial-store []
   [])
@@ -179,15 +225,43 @@
   ([& forms]
      {:form (util/maybe-add 'begin forms)
       :env (global-env) :store (initial-store)
-      :cont nil :value nil}))
+      :cont nil :value nil :effects []}))
 
-;;; TODO: Refactor this into multi-methods
+(defn set-boxed-value [name value-form {:keys [env store cont] :as state} op-name]
+  (let [[box new-store] (mem/new-box nil store)]
+    (when-not (symbol? name)
+      (util/error (str op-name ": first argument must be a symbol.")))
+    (assoc state
+      :form value-form
+      :env (assoc env name box)
+      :store new-store
+      :cont `((::set! ~name ~box) ~@cont))))
 
-;;; TODO: Should we clear the :value field for forms which have no
-;;; return value on their own?
+;;; <!-- TODO: Refactor this into multi-methods -->
 
 (defn step
-  "Perform a single step of the interpreter and return a new state"
+  "Perform a single step of the interpreter and return a new state.
+
+  Initially we pick off a few special cases:
+
+  * If `form` is `nil` we check whether we have a non-empty
+    continuation.  If we do, we continue with the first member of the
+    continuation.  Otherwise we are done
+
+  * If `form` is a symbol, we look up its value in the environment, 
+    convert it into its denotation (i.e., the Clojure equivalent)
+    and use that as the `:value` going forward.
+
+  * If `form` is an atomic value, we leave it alone (since atomic
+    values are always represented as their Clojure equivalent.
+
+  * Otherwise we have a compound form.  The first thing we do in that
+    case is to check whether it is a macro.  If it is, we expand it and
+    return the expansion as new `:form` (not implemented yet).
+    Otherwise, we check whether `:form` is a special operator.  If it is
+    we evaluate it using a special rule.  If `form` is neither a macro
+    nor a special operator it is a function call, and we evaluate the
+    call."
   [{:keys [form env store cont value] :as state}]
   (cond
    ;;
@@ -210,19 +284,18 @@
      (assoc state :form nil :value (rest form))
      ;; Definitions
      define
-     (let [[box new-store] (mem/new-box nil store)
-           name (nth form 1)]
-       (assoc state
-         :form (nth form 2)
-         :env (assoc env name box)
-         :store new-store
-         :cont `((::define ~name ~box) ~@cont)))
-     ::define
+     (set-boxed-value (nth form 1) (nth form 2) state "define")
+     set!
+     ;; TODO: add a check that the value already exists and is, in
+     ;; fact, a box.
+     (set-boxed-value (nth form 1) (nth form 2) state "set!")
+     ::set!
      (assoc state
        :form nil
        :store (mem/box-set! (if (instance? Proc value)
                               (assoc value :name (nth form 1))
-                              value) (nth form 2) store))
+                              value)
+                            (nth form 2) store))
      ;; Sequence
      begin
      (cond
@@ -298,6 +371,8 @@
 (def ^:dynamic *run-n-steps* (atom 100))
 
 (defn run-n-steps
+  "Run the interpreter for at most `*run-n-steps*` steps, pretty-print
+  the trace and return the result."
   ([& forms]
      (let [result (take @*run-n-steps*
                         (take-while
@@ -306,9 +381,14 @@
        (pprint result)
        (last result))))
 
-(def ^:dynamic *interp-steps* (atom 100000))
+#_(def ^:dynamic *interp-steps* (atom 100000))
 
 (defn interp
+  "Run the interpreter to completion and return the result, i.e.,
+  return a finite sequence containing all steps taken by the
+  interpreter.  This function will only terminate for terminating
+  algorithms, but it saves the user from checking whether the program
+  has reached the end of its execution trace."
   ([& forms]
      (let [result (take-while
                    (fn [{:keys [form cont value]}] (or form cont value))
@@ -319,7 +399,12 @@
 ;;; Functions for cleaning up the interpreter trace
 ;;; ===============================================
 
-(defn recursively-remove-global-vars-in [d]
+(defn recursively-remove-global-vars-in
+  "Walk `d` and remove all global variables (that the function knows
+  about).  Currently removes `:env` keys from maps and turns seqences
+  starting with `::return-from-call` (which contain an environment if
+  they were produced by the interpreter) into a keyword."
+  [d]
   (cond
    (map? d)
    (into {}
@@ -333,7 +418,7 @@
                                       v))])
                   [k (recursively-remove-global-vars-in v)]))
               d))
-   (or (sequential? d))
+   (sequential? d)
    (if (= (first d) ::return-from-call)
      ::return-from-call
      (map recursively-remove-global-vars-in d))
@@ -363,8 +448,15 @@
   [states]
   (map #(dissoc %1 :cont) states))
 
-(def cleanup-trace (comp remove-global-vars remove-internal-forms remove-continuations))
+(def cleanup-trace
+  "Clean a trace by removing all global vars and internal forms."
+  (comp remove-global-vars remove-internal-forms remove-continuations))
 
+(defn pretty-interp
+  "A wrapper around `interp` that removes all global variables from
+  the trace and pretty-prints it."
+  [& forms]
+  (-> (apply interp forms) remove-global-vars pprint))
 
 ;;; Try the following examples:
 (comment
@@ -394,10 +486,21 @@
                         '(fact 4))))
   (:value (last (interp '(define fact (lambda (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
                         '(fact 1000N))))
+  ;; You can even interpet non-terminating functions (just don't try
+  ;; to print the whole trace:)
+  (pprint
+   (take 8
+         (-> (interp '(define loop (lambda (n) (loop n))) '(loop 0))
+             remove-global-vars
+             remove-internal-forms)))
   )
 
-;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
+;;; Evaluate this (e.g., with `C-x C-e` in Cider) to run the tests for
 ;;; this namespace:
-;;; (clojure.test/run-tests 'revue.interpreter-test)
+(comment
+  (clojure.test/run-tests 'revue.interpreter-test)
+  )
 ;;; Evaluate this to run the test for all namespaces:
-;;; (clojure.test/run-all-tests #"^revue\..*-test")
+(comment
+  (clojure.test/run-all-tests #"^revue\..*-test")
+  )

@@ -11,7 +11,7 @@
                               [:url "https://github.com/hoelzl"]
                               [:email "tc@xantira.com"]]]
   :repositories [["local" "file:///Users/tc/.m2/repository"]]
-
+  
   :jar-exclusions [#"\.cljx|\.swp|\.swo|\.DS_Store"]
   :source-paths ["src/cljx"]
   :test-paths ["target/test-classes"]
@@ -47,6 +47,8 @@
                              [com.cemerick/clojurescript.test "0.3.1"]
                              [com.keminglabs/cljx "0.4.0"]
                              [lein-cljsbuild "1.0.3"]]
+                   ;; Temporarily avoid warnings from cljx
+                   :pedantic? :nope
                    :dependencies [[com.cemerick/double-check "0.5.8-SNAPSHOT"]]
                    :aliases {"cleantest" ["do" "clean," "cljx" "once," "test,"
                                           "cljsbuild" "test"]
