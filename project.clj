@@ -37,11 +37,20 @@
   :hooks [cljx.hooks]
 
   :cljsbuild {:test-commands {"node" ["node" :node-runner "target/testable.js"]}
-              :builds [{:source-paths ["target/classes" "target/test-classes"]
+              :builds {:test-js
+                       {:source-paths ["target/classes" "target/test-classes"]
                         :compiler {:output-to "target/testable.js"
                                    :optimizations :advanced
                                    :pretty-print true
-                                   :libs [""]}}]}
+                                   :libs [""]}}
+                       :release-js
+                       {:source-paths ["target/classes"]
+                        :compiler {:output-to "target/release/revue.js"
+                                   :source-map "target/release/revue.map"
+                                   :output-dir "target/release"
+                                   :optimizations :advanced
+                                   :pretty-print false
+                                   :libs [""]}}}}
 
   :profiles {:dev {:plugins [[com.cemerick/austin "0.1.5-SNAPSHOT"]
                              [com.cemerick/clojurescript.test "0.3.1"]
