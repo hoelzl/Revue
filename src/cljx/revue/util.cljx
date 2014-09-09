@@ -2,7 +2,10 @@
   "The `revue.util` namespace contains utilities used by the rest of
   the system, i.e., currently the memory subsystem and the
   interpreter, and in the future by the compiler and the virtual
-  machine." )
+  machine."
+  (:require #+cljs [cljs.reader :as reader]
+            ;; Maybe use clojure.core/read-string for Clojure?
+            #+clj [clojure.edn :as reader]))
 
 ;;; Warnings and Errors
 ;;; ====================
@@ -44,6 +47,22 @@
        (println prefix msg)
        (flush))))
 
+(def ^:dynamic *print-notes*
+  "If `*print-notes*` is truthy, notes messages are printed to
+  standard output, otherwise notes are ignored."
+  true)
+
+(defn note
+  "The `note` function is similar to `warn`."
+  ([msg]
+     (note "REVUE Note:" msg))
+  ([prefix msg]
+     (when *print-notes*
+       #+clj
+       (println prefix msg)
+       #+cljs
+       (.log js/console prefix msg)
+       (flush))))
 
 ;;; Utilities for sequences
 ;;; =======================
@@ -65,7 +84,7 @@
            (singleton? exps) (first exps)
            :else (cons op exps))))
 
-;;; Utilities for the VM Representation
+;;; Utilities for the VM representation
 ;;; ===================================
 
 ;;; Some utilities that deal with the handling of Clojure data types
@@ -90,6 +109,40 @@
    (string? d) true
    (identical? d ()) true
    :else false))
+
+;;; Utilities for reading the program source
+;;; ========================================
+
+#+clj
+(defn read-program-from-string
+  "Read all forms from the input string."
+  [string]
+  (try
+    (with-open [stream (-> (java.io.StringReader. string)
+                           clojure.lang.LineNumberingPushbackReader.)]
+      (loop [form (read stream false stream)
+             forms []]
+        (if (identical? form stream)
+          forms
+          (recur (read stream false stream)
+                 (conj forms form)))))
+    (catch java.lang.Exception e
+      [::syntax-error])))
+
+#+cljs
+(defn read-program-from-string
+  "Read all forms from the input string."
+  [string]
+  (try
+    (let [stream (cljs.reader/push-back-reader string)]
+      (loop [form (cljs.reader/read stream false stream nil)
+             forms []]
+        (if (identical? form stream)
+          forms
+          (recur (cljs.reader/read stream false stream nil)
+                 (conj forms form)))))
+    (catch js/Error e
+      [::syntax-error])))
 
 ;;; <!--
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for

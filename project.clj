@@ -16,7 +16,8 @@
   :source-paths ["src/cljx"]
   :test-paths ["target/test-classes"]
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/clojurescript "0.0-2322"]]
+                 [org.clojure/clojurescript "0.0-2322"]
+                 [org.clojure/tools.reader "0.8.8"]]
 
   :cljx {:builds [{:source-paths ["src/cljx"]
                    :output-path "target/classes"
@@ -45,14 +46,14 @@
                                    :libs [""]}}
                        :release-js
                        {:source-paths ["target/classes"]
-                        :compiler {:output-to "target/release/revue.js"
+                        :compiler {:output-dir "target/release"
+                                   :output-to "target/release/revue.js"
                                    :source-map "target/release/revue.map"
-                                   :output-dir "target/release"
                                    :optimizations :advanced
                                    :pretty-print false
                                    :libs [""]}}}}
 
-  :profiles {:dev {:plugins [[com.cemerick/austin "0.1.5-SNAPSHOT"]
+  :profiles {:dev {:plugins [[com.cemerick/austin "0.1.4"]
                              [com.cemerick/clojurescript.test "0.3.1"]
                              [com.keminglabs/cljx "0.4.0"]
                              [lein-cljsbuild "1.0.3"]]

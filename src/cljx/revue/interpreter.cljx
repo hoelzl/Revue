@@ -1,4 +1,3 @@
-
 (ns revue.interpreter
   "A continuation- and state-passing interpreter using the memory
   subsystem."
@@ -33,6 +32,11 @@
   "Warn about a problem encountered by the interpreter."
   [msg]
   (util/warn "Interpreter warning:" msg))
+
+(defn note
+  "Notify programmer about a problem encountered by the interpreter."
+  [msg]
+  (util/note "Interpreter note:" msg))
 
 #+cljs
 (defn nthrest
@@ -118,7 +122,9 @@
     (assoc state
       :form (:code this)
       :env (extend-env (:env this) (:params this) args)
-      :cont `((::return-from-call ~(:env state)) ~@(:cont state))))
+      :local-variables (conj (:local-variables state) (:params this))
+      :cont `((::return-from-call ~(:env state) ~(:local-variables state))
+              ~@(:cont state))))
   mem/StoredData
   (-->clojure [this store]
     this))
@@ -205,6 +211,7 @@
 ;;;
 ;;; * the form to be executed
 ;;; * the environment for the form
+;;; * the local variables of the current context
 ;;; * the store
 ;;; * a continuation
 ;;; * the value returned by the previous evaluation step
@@ -225,6 +232,7 @@
   ([& forms]
      {:form (util/maybe-add 'begin forms)
       :env (global-env) :store (initial-store)
+      :local-variables ()
       :cont nil :value nil :effects []}))
 
 (defn set-boxed-value [name value-form {:keys [env store cont] :as state} op-name]
@@ -269,6 +277,10 @@
    (if cont
      (assoc state :form (first cont) :cont (next cont))
      (assoc state :value nil))
+   ;;
+   (= form :revue.util/syntax-error)
+   (assoc state :form nil :cont nil :value nil
+          :comment "Computation aborted because of a syntax error")
    ;;
    (symbol? form)
    (assoc state :form nil :value (mem/->clojure (get env form) store))
@@ -361,7 +373,8 @@
      ::return-from-call
      (assoc state
        :form nil
-       :env (nth form 1))
+       :env (nth form 1)
+       :local-variables (nth form 2))
      (let [[proc & args] form]
        (assoc state
          :form `(::eval-args [] ~@args)
@@ -390,14 +403,31 @@
   algorithms, but it saves the user from checking whether the program
   has reached the end of its execution trace."
   ([& forms]
+     (note (str "Calling interp with arguments" forms))
      (let [result (take-while
                    (fn [{:keys [form cont value]}] (or form cont value))
                    (iterate step (apply initial-state forms)))]
        result)))
 
+(defn interp-string
+  "Read all froms from `string` and then run `interp` on them."
+  [string]
+  (apply interp (util/read-program-from-string string)))
+
+#+cljs
+(defn interp-js
+  "Read all forms from `string`, run `interp` on them until the
+  program is finished and convert to JavaScript."
+  [string]
+  (clj->js (interp-string string)))
 
 ;;; Functions for cleaning up the interpreter trace
 ;;; ===============================================
+
+(defn remove-envs
+  "Remove all :env slots"
+  [states]
+  (map #(dissoc %1 :env) states))
 
 (defn recursively-remove-global-vars-in
   "Walk `d` and remove all global variables (that the function knows
@@ -458,13 +488,30 @@
   [& forms]
   (-> (apply interp forms) remove-global-vars pprint))
 
+#+cljs
+(defn pretty-interp-js
+  "Like `pretty-interp`, but converts the result to JavaScript."
+  [& forms]
+  (-> (apply pretty-interp forms) clj->js))
+
+#+cljs
+(defn extract-js-trace
+  "Extract a JavaScript trace"
+  [states]
+  (-> states remove-envs remove-global-vars remove-internal-forms clj->js))
+
 ;;; Try the following examples:
 (comment
   (:value (last (interp '(+ 1 2))))
+  (:value (last (interp-string "(+ 1 2)")))
   (pprint
    (cleanup-trace
     (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
               (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 3))))
+  (pprint
+   (cleanup-trace
+    (interp-string "((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
+                     (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 3)")))
   (:value (last (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
                           (lambda (f n) (if (<= n 1) n (* n (f f (- n 1))))) 10))))
   (:value (last (interp '((lambda (f n) (if (<= n 1) n (* n (f f (- n 1)))))
@@ -474,6 +521,11 @@
                         '((lambda () (define x 2) (println x)))
                         '(println x)
                         'x)))
+  (:value (last (interp-string "(define x (+ 1 2))
+                                (println x)
+                                ((lambda () (define x 2) (println x)))
+                                (println x)
+                                x")))
   (:value (last (interp '(define f (lambda (n) n))
                         '(f 1))))
   (:value (last (interp '(define f (lambda (n) (if (>= n 1) f 1)))
@@ -486,6 +538,8 @@
                         '(fact 4))))
   (:value (last (interp '(define fact (lambda (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
                         '(fact 1000N))))
+  (:value (last (interp-string "(define fact (lambda (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
+                                (fact 1000N)")))
   ;; You can even interpet non-terminating functions (just don't try
   ;; to print the whole trace:)
   (pprint

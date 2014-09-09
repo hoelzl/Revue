@@ -83,7 +83,11 @@
   #+clj java.lang.String #+cljs string
   (-->clojure [this store] this)
   #+clj clojure.lang.PersistentList$EmptyList #+cljs cljs.core/EmptyList
-  (-->clojure [this store] ()))
+  (-->clojure [this store] ())
+  #+cljs nil
+  #+cljs
+  (-->clojure [this store]
+    nil))
 
 (defprotocol HeapObject
   "Datatypes that are stored on the heap implement the `HeapObject`

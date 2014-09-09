@@ -3,7 +3,7 @@
 (ns revue.util-test
   #+cljs (:require-macros [cemerick.cljs.test :refer (deftest testing is are)]
                           [clojure.test.check.clojure-test :refer (defspec)])
-  (:require #+clj [clojure.test :refer (deftest testing is are)]
+  (:require #+clj [clojure.test :refer (deftest testing is are) :as t]
             #+cljs [cemerick.cljs.test :as t]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
@@ -72,6 +72,28 @@
     (is (not (util/atomic? [])))
     (is (not (util/atomic? '(1 2 3))))
     (is (not (util/atomic? [1 2 3])))))
+
+(deftest read-program-from-string-01
+  (testing "Reading multiple forms from a string"
+    (is (= (util/read-program-from-string "") []))
+    (is (= (util/read-program-from-string "   ") []))
+    (is (= (util/read-program-from-string "1") [1]))
+    (is (= (util/read-program-from-string "1 2") [1 2]))
+    (is (= (util/read-program-from-string "[]") [[]]))
+    (is (= (util/read-program-from-string "[][]") [[] []]))
+    (is (= (util/read-program-from-string "[] []") [[] []]))
+    (is (= (util/read-program-from-string "[1 2 3] [4 5 6]") [[1 2 3] [4 5 6]]))))
+
+(defspec read-program-from-string-02 50
+  (testing "Random roundtrip test for reading-programs from strings."
+    (prop/for-all [d gen/any-printable]
+      (let [string (prn-str d)]
+        ;; (println "d:     " d)
+        ;; (println "string:" string)
+        (if (empty? (clojure.string/trim string))
+          (is (= (util/read-program-from-string string) []))
+          (is (= (util/read-program-from-string string) [d])))))))
+
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
