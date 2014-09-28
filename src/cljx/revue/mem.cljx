@@ -1,4 +1,3 @@
-
 (ns revue.mem
   "The memory subsystem for interpreters and the VM"
   (:require [revue.util :as util]))
@@ -31,8 +30,8 @@
 ;;; The denoted values are references to mutable versions of the
 ;;; expressed values.  For other input languages, the expressed values
 ;;; may differ, and therefore it may be necessary to either encode
-;;; them using the provided data structures for stored values, or to
-;;; extend the memory subsystem with new data types.
+;;; their denotation using the provided data structures for stored
+;;; values, or to extend the memory subsystem with new data types.
 
 ;;; To make the storage system of the VM slightly less inefficient, we
 ;;; store the first five of the denoted types (Booleans, numbers,
@@ -49,11 +48,13 @@
 ;;; into its internal representation in the VM (and the interpreter),
 ;;; and `->clojure` for getting back a Clojure value from the VM's
 ;;; internal representation.  These two functions are mostly inverse
-;;; to each other; `#(apply ->clojure (->vm %))` is always the
-;;; identity (unless there is a bug in the implementation of the
-;;; conversion); the other direction, `#(->vm (->clojure %1 %2) [])`,
-;;; might result in a different state than the one that was originally
-;;; passed in.
+;;; to each other; in Clojure `#(apply ->clojure (->vm %))` is always
+;;; the identity (unless there is a bug in the implementation of the
+;;; conversion), in ClojureScript it might change objects to primitive
+;;; values, e.g., `js/Number` to `number` or vice versa, but this
+;;; should only be visible from JavaScript, not from ClojureScript.
+;;; The other direction, `#(->vm (->clojure %1 %2) [])`, might result
+;;; in a different state than the one that was originally passed in.
 
 ;;; In the conversion to Clojure, information about sharing in the
 ;;; data is lost.  Some amount of loss is unavoidable, since Clojure
@@ -84,6 +85,9 @@
 (declare ->clojure)
 
 (extend-protocol StoredData
+  nil
+  (-->clojure [this store]
+    nil)
   #+clj java.lang.Boolean #+cljs boolean
   (-->clojure [this store] this)
   #+clj java.lang.Number #+cljs number
@@ -95,21 +99,17 @@
   #+clj java.lang.String #+cljs string
   (-->clojure [this store] this)
   #+clj clojure.lang.PersistentList$EmptyList #+cljs cljs.core/EmptyList
-  (-->clojure [this store] ())
-  #+cljs nil
-  #+cljs
-  (-->clojure [this store]
-    nil))
+  (-->clojure [this store] ()))
 
 (defprotocol HeapObject
   "Datatypes that are stored on the heap implement the `HeapObject`
   protocol.
 
   `HeapObject`s can always report the address where they are stored on
-  the heap and their size.  It is not quite clear yet, what the
-  `-size` method should report for objects which do not occupy
-  contiguous regions of heap space, so the definition of the size
-  might change in the future."
+  the heap and their size.  The `-size` method always returns the
+  number of contiguous words that the object takes up on the heap.
+  Note that two objects may have the same address on the heap iff one
+  of them has size zero, i.e., if `-size` returns `0`."
   (-address [this store])
   (-size [this store]))
 
@@ -138,19 +138,19 @@
 
 (defn new-box
   "Allocate a new `VmBox` cell.  The `value` parameter should be a
-  stored value."
+  stored value.  Return the new box reference and the new store."
   [value store]
   (let [address (count store)
         new-store (conj store value)]
     [(->VmBox address) new-store]))
 
 (defn box-set!
-  "Change the value stored in a box"
+  "Change the value stored in a box."
   [new-value box store]
   (assoc store (-address box store) new-value))
 
-;;; References to a cons cell on the heap, i.e., the stored value for
-;;; lists.
+;;; The type `VmCons` represents references to a cons cell on the
+;;; heap, i.e., the stored value for lists.
 ;;;
 (defrecord VmCons [address]
   StoredData
@@ -176,16 +176,20 @@
     2))
 
 (defn new-cons
-  "Allocate a new VmCons cell.  The `car` and `cdr` parameters have to
-  be StoredData."
+  "Allocate a new `VmCons` cell.  The `car` and `cdr` parameters have
+  to be `StoredData`.  Return the new cons cell reference and the new
+  store."
   [[car cdr] store]
   (let [address (count store)
         new-store (conj store car cdr)]
     [(->VmCons address) new-store]))
 
 
-;;; Reference to a vector occupying a contiguous part of the heap.
-;;; Currently vectors are not resizable in place.
+;;; A `VmVector` is a reference to a vector occupying a contiguous
+;;; part of the heap.  Vectors correspond to arrays in C or vectors in
+;;; Scheme and are not resizable in place.  JavaScript arrays (or Java
+;;; `ArrayList`s, etc.) might either be implemented on top of
+;;; `VmVector`, or as a new primitive data type `VmResizableVector`.
 ;;;
 (defrecord VmVector [address size]
   StoredData
@@ -201,20 +205,21 @@
     (:size this)))
 
 (defn new-vector
-  "Allocate a new VmVector. The contents has to be StoredData.
+  "Allocate a new `VmVector`. The contents has to be `StoredData`.
+  Return the new vector reference and a new store.
 
   There is no way to create an uninitialized vector.  To create an
   vector of a prespecified size with a given element, do something
-  like (new-vector (repeat 10 false) store)"
+  like `(new-vector (repeat 10 false) store)`"
   [contents store]
   (let [address (count store)
         size (count contents)
         new-store (into store contents)]
     [(->VmVector address size) new-store]))
 
-;;; VM representation of maps.  To simplify the implementation, we
-;;; define a map as a reference to a vector consisting of key-value
-;;; pairs.
+;;; The type `VmMap` is the VM representation of maps.  To simplify
+;;; the implementation, we define a map as a reference to a vector
+;;; consisting of key-value pairs.
 ;;;
 (defrecord VmMap [vector-ref]
   StoredData
@@ -228,16 +233,17 @@
     (-size (:vector-ref this) store)))
 
 (defn new-map
-  "Allocate a new VmMap.  The contents is passed as a vector of key-value
-  pairs; these pairs have to be already converted into stored data."
+  "Allocate a new `VmMap`.  The contents is passed as a vector of
+  key-value pairs; these pairs have to be already converted into
+  stored data.  Return a new map reference and the new store."
   [contents store]
   (let [[v new-store] (new-vector contents store)]
     [(->VmMap v) new-store]))
 
-;;; We define the ->clojure function as a wrapper around the protocol
-;;; to avoid warnings from the ClojureScript compiler.  This is
-;;; probably a bug in ClojureScript.  In addition we can overload the
-;;; function to use an empty store when it is called with one
+;;; We define the `->clojure` function as a wrapper around the
+;;; protocol to avoid warnings from the ClojureScript compiler.  This
+;;; is probably a bug in ClojureScript.  In addition we can overload
+;;; the function to use an empty store when it is called with one
 ;;; argument.
 
 (defn ->clojure
@@ -250,10 +256,11 @@
 
 (defprotocol ExpressedData
   "Datatypes that can be converted to a VM representation.  The
-  function ->vm always returns a type that implements StoredData and
-  can therefore be converted back into expressed data.  The roundtrip
-  conversion from expressed data to stored data and back to expressed
-  data is always an identity."
+  function `->vm` always returns a type that implements `StoredData`
+  and can therefore be converted back into expressed data.  The
+  roundtrip conversion from expressed data to stored data and back to
+  expressed data is the identity function (with the caveats for
+  ClojureScript mentioned above)."
   (-->vm [this store]))
 
 
@@ -262,13 +269,17 @@
 ;;;
 (declare ->vm)
 
+(defn convert-one-clj-value-and-extend-seq [[a-seq store] elt]
+  "Convert a single Clojure value to a reference and `conj` it onto
+  `a-seq`.  Return the new seq and a new store."
+  (let [[new-elt new-store] (->vm elt store)]
+    [(conj a-seq new-elt) new-store]))
+
 (defn convert-to-store-vector
   "Convert a vector containing expressed data to a vector consisting
-  only of stored-data and a new store."
+  only of `StoredData` and a new store."
   [vector store]
-  (reduce (fn [[vec store] elt]
-            (let [[new-elt new-store] (->vm elt store)]
-              [(conj vec new-elt) new-store]))
+  (reduce convert-one-clj-value-and-extend-seq
           [[] store]
           vector))
 
@@ -289,9 +300,7 @@
   (-->vm [this store]
     ;; Written in this slightly convoluted way to avoid stack overflow
     ;; for long lists.
-    (let [[elts new-store] (reduce (fn [[lst store] elt]
-                                     (let [[new-elt tmp-store] (->vm elt store)]
-                                       [(cons new-elt lst) tmp-store]))
+    (let [[elts new-store] (reduce convert-one-clj-value-and-extend-seq
                                    [() store]
                                    this)]
       (reduce (fn [[vm-cons store] d]
@@ -323,7 +332,10 @@
 
 (defn ->vm
   "Convert expressed data to stored data, i.e., convert Clojure data
-  structures into the VM's internal format."
+  structures into the VM's internal format (objects that implement
+  `StoredData`).  Return the stored value (either a primitive value
+  for Booleans, numbers, symbols, keywords or strings, or a heap
+  reference to a list, vector or map, and the new store."
   ([d]
      (->vm d []))
   ([d store]
@@ -331,6 +343,6 @@
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
-;;; (clojure.test/run-tests 'revue.vm-test)
+;;; (clojure.test/run-tests 'revue.mem-test)
 ;;; Evaluate this to run the test for all namespaces:
 ;;; (clojure.test/run-all-tests #"^revue\..*-test")
