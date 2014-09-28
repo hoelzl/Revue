@@ -15,8 +15,9 @@
 ;;; Clojure data structures) into an internal representation (the
 ;;; stored data values).  The expressed values are the values that can
 ;;; appear syntactically in the program text.  Since we are using the
-;;; Clojure reader, the simplest solution for our expressed values is
-;;; to allow the following data types.
+;;; Clojure reader for the Scheme-like internal language, the simplest
+;;; solution for expressed values in this language is to allow the
+;;; following data types.
 
 ;;; * Booleans
 ;;; * Numbers
@@ -28,14 +29,20 @@
 ;;; * Maps
 
 ;;; The denoted values are references to mutable versions of the
-;;; expressed values.
+;;; expressed values.  For other input languages, the expressed values
+;;; may differ, and therefore it may be necessary to either encode
+;;; them using the provided data structures for stored values, or to
+;;; extend the memory subsystem with new data types.
 
 ;;; To make the storage system of the VM slightly less inefficient, we
 ;;; store the first five of the denoted types (Booleans, numbers,
 ;;; symbols, keywords and strings) directly, and only use references
 ;;; for the compound data types.  The stored values are therefore
 ;;; Booleans, numbers, symbols, keywords, strings, references to
-;;; lists, references to vectors, and references to maps.
+;;; lists, references to vectors, and references to maps.  For cases
+;;; where we need mutable bindings of the directly stored types, the
+;;; memory system provides a box data type that is a simple reference
+;;; to another stored data type.
 
 ;;; The important functions are `->vm` for converting a represented
 ;;; value into a stored value (i.e., for converting a Clojure datum
@@ -50,12 +57,17 @@
 
 ;;; In the conversion to Clojure, information about sharing in the
 ;;; data is lost.  Some amount of loss is unavoidable, since Clojure
-;;; data structures cannot represent arbitrary graphs without using
-;;; refs, actors or atoms; in other cases it would be possible to
-;;; maintain sharing when converting data into Clojure structures
+;;; data structures cannot directly represent arbitrary graphs without
+;;; using refs, actors or atoms; in other cases it would be possible
+;;; to maintain sharing when converting data into Clojure structures
 ;;; (e.g., shared tails when converting lists).  The loss of
 ;;; information about sharing means that you cannot convert cyclic
-;;; data structures to Clojure, so beware.
+;;; data structures to Clojure, so beware.  If it should become
+;;; necessary to maintain information about sharing during the
+;;; conversion process, it would be straightforward to add a cache
+;;; that remembers the addresses that were already converted to
+;;; Clojure, but since this cannot be a general solution it seems not
+;;; worth the effort.
 
 (defprotocol StoredData
   "Datatypes that are understood by the VM.  The conversion

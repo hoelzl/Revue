@@ -15,9 +15,9 @@
   :jar-exclusions [#"\.cljx|\.swp|\.swo|\.DS_Store"]
   :source-paths ["src/cljx"]
   :test-paths ["target/test-classes"]
-  :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/clojurescript "0.0-2322"]
-                 [org.clojure/tools.reader "0.8.8"]]
+  :dependencies [[org.clojure/clojure "1.7.0-alpha2"]
+                 [org.clojure/clojurescript "0.0-2356"]
+                 [org.clojure/tools.reader "0.8.9"]]
 
   :cljx {:builds [{:source-paths ["src/cljx"]
                    :output-path "target/classes"
@@ -53,10 +53,11 @@
                                    :pretty-print false
                                    :libs [""]}}}}
 
-  :profiles {:dev {:plugins [[com.cemerick/austin "0.1.4"]
-                             [com.cemerick/clojurescript.test "0.3.1"]
-                             [com.keminglabs/cljx "0.4.0"]
-                             [lein-cljsbuild "1.0.3"]]
+  :profiles {:dev {:plugins [[com.cemerick/austin "0.1.4" :exclusions [org.clojure/clojurescript]]
+                             [com.cemerick/clojurescript.test "0.3.1"
+                              :exclusions [org.clojure/clojurescript com.google.guava/guava]]
+                             [com.keminglabs/cljx "0.4.0" :exclusions [org.clojure/clojure org.clojure/clojurescript]]
+                             [lein-cljsbuild "1.0.4-SNAPSHOT"]]
                    ;; Temporarily avoid warnings from cljx
                    :pedantic? :nope
                    :dependencies [[com.cemerick/double-check "0.5.8-SNAPSHOT"]]
