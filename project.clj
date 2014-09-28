@@ -12,6 +12,7 @@
                               [:email "tc@xantira.com"]]]
   :repositories [["local" "file:///Users/tc/.m2/repository"]]
   
+  :exclusions [org.clojure/clojure org.clojure/clojurescript]
   :jar-exclusions [#"\.cljx|\.swp|\.swo|\.DS_Store"]
   :source-paths ["src/cljx"]
   :test-paths ["target/test-classes"]
@@ -35,7 +36,7 @@
                    :output-path "target/test-classes"
                    :rules :cljs}]}
 
-  :hooks [cljx.hooks]
+  :prep-tasks [["cljx" "once"] "javac" "compile"]
 
   :cljsbuild {:test-commands {"node" ["node" :node-runner "target/testable.js"]}
               :builds {:test-js
@@ -53,13 +54,11 @@
                                    :pretty-print false
                                    :libs [""]}}}}
 
-  :profiles {:dev {:plugins [[com.cemerick/austin "0.1.4" :exclusions [org.clojure/clojurescript]]
+  :profiles {:dev {:plugins [[com.cemerick/austin "0.2.0-SNAPSHOT"]
                              [com.cemerick/clojurescript.test "0.3.1"
-                              :exclusions [org.clojure/clojurescript com.google.guava/guava]]
-                             [com.keminglabs/cljx "0.4.0" :exclusions [org.clojure/clojure org.clojure/clojurescript]]
+                              :exclusions [com.google.guava/guava]]
+                             [org.clojars.cemerick/cljx "0.5.0-SNAPSHOT"]
                              [lein-cljsbuild "1.0.4-SNAPSHOT"]]
-                   ;; Temporarily avoid warnings from cljx
-                   :pedantic? :nope
                    :dependencies [[com.cemerick/double-check "0.5.8-SNAPSHOT"]]
                    :aliases {"cleantest" ["do" "clean," "cljx" "once," "test,"
                                           "cljsbuild" "test"]
