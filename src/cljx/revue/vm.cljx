@@ -165,18 +165,20 @@
 (defmethod print-method Env [env writer]
   (.write writer (str "#" (print-str (class env)) "{:frames " (frames env) "}")))
 
-(defn env-value [vm-state {:keys [frame slot]}]
+(defn env-value
   "Return the value at position `[frame slot]` in `vm-state`'s
   environment.  This is similar to `(get-in env [frame slot])` but
   throws if the index is out of bounds (which can only result from a
   compiler error)."
+  [vm-state {:keys [frame slot]}]
   (let [env (:env vm-state)
         frame-vector (nth env frame)]
     (nth frame-vector slot)))
 
-(defn set-local-var-from-stack [{:keys [env stack] :as vm-state} {:keys [frame slot]}]
+(defn set-local-var-from-stack
   "Set the value at position `[frame slot]` in `vm-state`'s
   environment to `new-value`."
+  [{:keys [env stack] :as vm-state} {:keys [frame slot]}]
   (assoc vm-state
     :env (assoc-in (:env vm-state) [frame slot] (peek stack))
     :stack (pop (:stack vm-state))))
@@ -185,28 +187,34 @@
 ;;; The Global Environment
 ;;; ======================
 
-(defn make-global-env []
+(defn make-global-env
   "Create a hash table that serves as the global environment."
+  []
   {})
 
 ;;; The VM State
 ;;; ============
 
-(defn make-return-address [{:keys [function pc env]}]
+(defn make-return-address
+  "Create a new return address that jumps to step `pc` in `function`."
+  [{:keys [function pc env]}]
   {:type :return-address
    :function function
    :pc pc
    :env env})
 
-(defn make-fn [{:keys [code env name args]}]
+(defn make-fn
+  "Create a new bytecode-interpreted function."
+  [{:keys [code env name args]}]
   {:type :bytecode-function
    :code code
    :env env
    :name name
    :args args})
 
-(defn initial-state [f]
+(defn initial-state
   "Create a new state for a VM, initially executing function `f`"
+  [f]
   {:type :vm-state
    :function f
    :code (:code f)
@@ -231,8 +239,9 @@
 ;;; VM Instructions
 ;;; ===============
 
-(defn make-prim [symbol n-args opcode always? side-effect?]
+(defn make-prim
   "Create a new primitive instruction."
+  [symbol n-args opcode always? side-effect?]
   {:type :primitive-instruction
    :symbol symbol
    :n-args n-args
@@ -366,7 +375,16 @@
   (-opcode [this]
     'CALLJ))
 
-(defn move-args-from-stack-to-env [n-args vm-state & n-rest-args]
+(defn move-args-from-stack-to-env
+  "If `n-rest-args` is falsy, pop `n-args` arguments from the stack
+  and put them in a newly created environment frame.  If `n-rest-args`
+  is truthy it must be an integer, in that case `n-args` +
+  `n-rest-args` arguments are popped from the stack; the first
+  `n-args` are put in individual slots in the newly created
+  environment frame, the last `n-rest-args` are collected into a
+  vector and put in the (`n-args` + 1)st slot in the new environment
+  frame."
+  [n-args vm-state & n-rest-args]
   (let [stack (:stack vm-state)
         tmp-frame (vec (take n-args stack))
         tmp-stack (drop n-args stack)
@@ -436,11 +454,11 @@
   VmInst
   (-step [this vm-state]
     (assoc vm-state :stack
-           (make-fn :code (assemble '((args 1)
-                                      (lvar 1 0 stack)
-                                      (set-cc)
-                                      (lvar 0 0 fun)
-                                      (return)))
+           (make-fn :code (assemble '((ARGS 1)
+                                      (LVAR 1 0 stack)
+                                      (SET-CC)
+                                      (LVAR 0 0 fun)
+                                      (RETURN)))
                     :env (->Env [(:stack vm-state)])
                     :name '%cc
                     :args '[fun])))
@@ -468,14 +486,23 @@
     'OP))
 
 
-(defn step [vm-state]
+(defn step
   "Run a single step of the VM starting in `vm-state`.  If the VM is
   stopped, i.e., `(:stopped? vm-state)` is true, then return the state
   unchanged."
+  [vm-state]
   (if (:stopped? vm-state)
     vm-state
     (let [instr (nth (:code vm-state) (:pc vm-state))]
-      (-step instr (update-in vm-state :pc inc)))))
+      (-step instr (assoc vm-state
+                     :pc (inc (:pc vm-state))
+                     :instr instr)))))
+
+
+;;; The Assembler
+;;; =============
+
+(defn assemble [])
 
 ;;; The VM Proper
 ;;; =============
