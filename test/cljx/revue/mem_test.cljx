@@ -1,7 +1,7 @@
 ;;; Test for the revue.vm namespace.
 
 (ns revue.mem-test
-  #+cljs (:require-macros [cemerick.cljs.test :refer (deftest testing is are)]
+  #+cljs (:require-macros [cemerick.cljs.test :as t :refer (deftest testing is are)]
                           [clojure.test.check.clojure-test :refer (defspec)])
   (:require #+clj [clojure.test :as t :refer (deftest testing is are)]
             #+cljs [cemerick.cljs.test :as t]

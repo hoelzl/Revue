@@ -177,9 +177,9 @@
 (defn set-local-var-from-stack [{:keys [env stack] :as vm-state} {:keys [frame slot]}]
   "Set the value at position `[frame slot]` in `vm-state`'s
   environment to `new-value`."
-  (update-in
-   (update-in vm-state [:env] assoc-in [frame slot] (peek stack))
-   [:stack] pop))
+  (assoc vm-state
+    :env (assoc-in (:env vm-state) [frame slot] (peek stack))
+    :stack (pop (:stack vm-state))))
 
 
 ;;; The Global Environment
@@ -192,9 +192,9 @@
 ;;; The VM State
 ;;; ============
 
-(defn make-ret-addr [fn pc env]
+(defn make-return-address [{:keys [function pc env]}]
   {:type :return-address
-   :fn fn
+   :function function
    :pc pc
    :env env})
 
@@ -208,13 +208,13 @@
 (defn initial-state [f]
   "Create a new state for a VM, initially executing function `f`"
   {:type :vm-state
+   :function f
    :code (:code f)
    :pc 0
    :global-env (make-global-env)
    :env ()
    :stack ()
-   :n-args 0
-   :instr nil})
+   :n-args 0})
 
 ;;; VM Instructions
 ;;; ===============
@@ -239,7 +239,8 @@
 (defrecord LVAR [frame slot source]
   VmInst
   (-step [this vm-state]
-    (update-in vm-state [:stack] conj (env-value vm-state this)))
+    (assoc vm-state
+      :stack (conj (:stack vm-state) (env-value vm-state this))))
   (-opcode [this]
     'LVAR))
 
@@ -251,63 +252,105 @@
   (-opcode [this]
     'LSET))
 
-(defrecord GVAR [source]
+(defrecord GVAR [name source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (assoc vm-state
+      :stack (conj (:stack vm-state)
+                   (get (:global-env vm-state) (:name this)))))
   (-opcode [this]
     'GVAR))
 
-(defrecord GSET [source]
+(defrecord GSET [name source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (assoc vm-state
+      :global-env (assoc (:global-env vm-state) name (peek (:stack this)))
+      :stack (pop (:stack this))))
   (-opcode [this]
     'GSET))
 
 (defrecord POP [source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (update-in vm-state [:stack] pop))
   (-opcode [this]
     'POP))
 
-(defrecord CONST [source]
+(defrecord CONST [value source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (update-in vm-state [:stack] conj (:value this)))
   (-opcode [this]
     'CONST))
 
-(defrecord JUMP [source]
+(defrecord JUMP [target source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (assoc vm-state :pc (:target this)))
   (-opcode [this]
     'JUMP))
 
-(defrecord FJUMP [source]
+(defrecord FJUMP [target source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (let [stack (:stack vm-state)
+          value (peek stack)
+          new-state (update-in vm-state [:stack] pop)]
+      (if (not value)
+        (update-in new-state [:pc] (:target this))
+        new-state)))
   (-opcode [this]
     'FJUMP))
 
-(defrecord TJUMP [source]
+(defrecord TJUMP [target source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (let [stack (:stack vm-state)
+          value (peek stack)
+          new-state (update-in vm-state [:stack] pop)]
+      (if value
+        (update-in new-state [:pc] (:target this))
+        new-state)))
   (-opcode [this]
     'TJUMP))
 
 (defrecord SAVE [source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (let [ret-addr (make-return-address vm-state)]
+      (update-in vm-state [:stack] conj ret-addr)))
   (-opcode [this]
     'SAVE))
 
 (defrecord RETURN [source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (let [stack (:stack vm-state)
+          return-address (second stack)
+          function (:function return-address)]
+      (assoc vm-state
+        :stack (conj (vec (nthrest stack 2)) (first stack))
+        :function function
+        :code (:code function)
+        :env (:env return-address)
+        :pc (:pc return-address))))
   (-opcode [this]
     'RETURN))
 
-(defrecord CALLJ [source]
+(defrecord CALLJ [n-args source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (let [old-stack (:stack vm-state)
+          function (second old-stack)
+          new-stack (vec (nthrest old-stack 2))]
+      (assoc vm-state
+        :stack new-stack
+        :function function
+        :code (:code function)
+        :env (:env function)
+        :pc 0
+        :n-args (:n-args this))))
   (-opcode [this]
     'CALLJ))
 
@@ -383,6 +426,9 @@
   (-opcode [this]
     'OPN))
 
+(defn step [vm-state]
+  (let [instr (nth (:code vm-state) (:pc vm-state))]
+    (-step instr (update-in vm-state :pc inc))))
 
 ;;; The VM Proper
 ;;; =============

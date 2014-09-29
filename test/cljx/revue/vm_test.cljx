@@ -1,7 +1,7 @@
 ;;; Test for the revue.vm namespace.
 
 (ns revue.vm-test
-  #+cljs (:require-macros [cemerick.cljs.test :refer (deftest testing is are)]
+  #+cljs (:require-macros [cemerick.cljs.test :as t :refer (deftest testing is are)]
                           [clojure.test.check.clojure-test :refer (defspec)])
   (:require #+clj [clojure.test :as t :refer (deftest testing is are)]
             #+cljs [cemerick.cljs.test :as t]
@@ -20,13 +20,16 @@
     (is (= (with-out-str (vm/warn "Hey!")) "VM Warning: Hey!\n"))))
 
 (deftest Env-01
-  (testing "Env"
+  (testing "Env: frames, count"
     (is (= (vm/frames (vm/->Env [])) []))
     (is (= (vm/frames (vm/->Env [1])) [1]))
     (is (= (count (vm/->Env [])) 0))
     (is (= (count (vm/->Env [1])) 1))
-    (is (= (count (vm/->Env [1 2 3 4])) 4))
-    (is (= (nth (vm/->Env [1]) 0) 1))
+    (is (= (count (vm/->Env [1 2 3 4])) 4))))
+
+(deftest Env-02
+  (testing "Env: nth"
+        (is (= (nth (vm/->Env [1]) 0) 1))
     ;; Note that the nth indexes from the end of the array
     (is (= (nth (vm/->Env [1 2 3 4]) 0) 4))
     (is (= (nth (vm/->Env [1 2 3 4]) 1) 3))
@@ -35,26 +38,38 @@
     (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
                  (nth (vm/->Env [1 2 3 4]) 4)))
     (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
-                 (nth (vm/->Env [1 2 3 4]) -1)))
+                 (nth (vm/->Env [1 2 3 4]) -1)))))
+
+(deftest Env-03
+  (testing "Env: ="
     (is (= (seq (vm/->Env [])) nil))
     (let [env (vm/->Env [1])]
       (is (= (seq env) env)))
     (is (= (vm/->Env []) (vm/->Env [])))
     (is (= (vm/->Env [1]) (vm/->Env [1])))
-    (is (not (= (vm/->Env []) (vm/->Env [1]))))
+    (is (not (= (vm/->Env []) (vm/->Env [1]))))))
+
+(deftest Env-04
+  (testing "Env: =, conj"
     (is (not (= (vm/->Env [1]) (vm/->Env []))))
     (is (= (vm/->Env [1 2 3 4]) (vm/->Env [1 2 3 4])))
     (is (not (= (vm/->Env [1 2 3]) (vm/->Env [1 2 3 4]))))
     (is (not (= (vm/->Env [1 2 3 4]) (vm/->Env [1 2 3]))))
     (is (= (vm/->Env [1 2 3 4]) [4 3 2 1]))
     (is (not (= (vm/->Env [1 2 3 4]) [1 2 3 4])))
-    (is (= (conj (vm/->Env []) 1) (conj (vm/->Env [1]))))
+    (is (= (conj (vm/->Env []) 1) (conj (vm/->Env [1]))))))
+
+(deftest Env-05
+  (testing "Env: empty?, first"
     (is (empty? (vm/->Env [])))
     (is (not (empty? (vm/->Env [1]))))
     (is (= (first (vm/->Env [])) nil))
     (is (= (first (vm/->Env [1])) 1))
     (is (= (first (vm/->Env [1 2])) 2))
-    (is (= (first (vm/->Env [1 2 3])) 3))
+    (is (= (first (vm/->Env [1 2 3])) 3))))
+
+(deftest Env-06
+  (testing "Env: rest"
     (is (= (rest (vm/->Env [])) ()))
     (is (= (rest (vm/->Env [1])) []))
     (is (= (list? (rest (vm/->Env [1])))))
@@ -63,7 +78,10 @@
     (is (= (class (rest (vm/->Env [1 2]))) revue.vm.Env))
     (is (= (rest (vm/->Env [1 2 3])) [2 1]))
     #+clj
-    (is (= (class (rest (vm/->Env [1 2 3]))) revue.vm.Env))
+    (is (= (class (rest (vm/->Env [1 2 3]))) revue.vm.Env))))
+
+(deftest Env-07
+  (testing "Env: next"
     (is (= (next (vm/->Env [])) nil))
     (is (= (next (vm/->Env [1])) nil))
     (is (= (next (vm/->Env [1 2])) [1]))
@@ -73,8 +91,8 @@
     #+clj
     (is (= (class (next (vm/->Env [1 2 3]))) revue.vm.Env))))
 
-(deftest Env-02
-  (testing "Env, peek, pop"
+(deftest Env-08
+  (testing "Env: peek, pop"
     (let [env (vm/->Env [[4 5 6] [1 2 3]])]
       (is (= (peek (vm/->Env [])) nil))
       (is (= (pop (vm/->Env [])) []))
@@ -85,8 +103,8 @@
       #+clj
       (is (= (class (pop env)) revue.vm.Env)))))
 
-(deftest Env-03
-  (testing "Env, assoc, lookup"
+(deftest Env-09
+  (testing "Env: assoc, get"
     (let [env (vm/->Env [1 2 3])]
       (is (= (assoc env 0 6) [6 2 1]))
       #+clj
@@ -101,8 +119,8 @@
       (is (= (get env 1) 2))
       (is (= (get env 2) 1)))))
 
-(deftest Env-04
-  (testing "Env get-in, assoc-in"
+(deftest Env-10
+  (testing "Env: get-in"
     (let [env (vm/->Env [[6 7 8 9] [4 5] [1 2 3]])]
       (is (= (get-in env [0 0]) 1))
       (is (= (get-in env [0 1]) 2))
@@ -112,7 +130,11 @@
       (is (= (get-in env [2 0]) 6))
       (is (= (get-in env [2 1]) 7))
       (is (= (get-in env [2 2]) 8))
-      (is (= (get-in env [2 3]) 9))
+      (is (= (get-in env [2 3]) 9)))))
+
+(deftest Env-11
+  (testing "Env: assoc-in"
+    (let [env (vm/->Env [[6 7 8 9] [4 5] [1 2 3]])]
       (is (= (assoc-in env [0 0] 10) [[10 2 3] [4 5] [6 7 8 9]]))
       (is (= (assoc-in env [0 1] 10) [[1 10 3] [4 5] [6 7 8 9]]))
       (is (= (assoc-in env [0 2] 10) [[1 2 10] [4 5] [6 7 8 9]]))

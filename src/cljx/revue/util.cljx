@@ -5,7 +5,8 @@
   machine."
   (:require #+cljs [cljs.reader :as reader]
             ;; Maybe use clojure.core/read-string for Clojure?
-            #+clj [clojure.edn :as reader]))
+            #+clj [clojure.edn :as reader]
+            #+clj [clojure.pprint :as pprint]))
 
 
 ;;; Fixes and Missing Libraries
@@ -27,7 +28,7 @@
   once the implementation is done."
   [obj]
   #+clj
-  (clojure.pprint/pprint obj)
+  (pprint/pprint obj)
   #+cljs
   (println obj))
 

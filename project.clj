@@ -18,7 +18,9 @@
   :test-paths ["target/test-classes"]
   :dependencies [[org.clojure/clojure "1.7.0-alpha2"]
                  [org.clojure/clojurescript "0.0-2356"]
-                 [org.clojure/tools.reader "0.8.9"]]
+                 [org.clojure/tools.reader "0.8.9"]
+                 ;;[weasel "0.4.0-SNAPSHOT"]
+                 ]
 
   :cljx {:builds [{:source-paths ["src/cljx"]
                    :output-path "target/classes"
@@ -54,12 +56,18 @@
                                    :pretty-print false
                                    :libs [""]}}}}
 
-  :profiles {:dev {:plugins [[com.cemerick/austin "0.1.5"]
+  :profiles {:dev {:plugins [[com.cemerick/austin "0.2.0-SNAPSHOT"]
+                             [com.cemerick/piggieback "0.1.4-SNAPSHOT"]
                              [com.cemerick/clojurescript.test "0.3.1"
                               :exclusions [com.google.guava/guava]]
                              [org.clojars.cemerick/cljx "0.5.0-SNAPSHOT"]
                              [lein-cljsbuild "1.0.4-SNAPSHOT"]]
+                   :repl-options {:nrepl-middleware [cemerick.piggieback/wrap-cljs-repl]}
                    :dependencies [[com.cemerick/double-check "0.5.8-SNAPSHOT"]]
+                   ;; :injections [(require '[weasel.repl :as repl])
+                   ;;              (defn start-weasel []
+                   ;;                (if-not (repl/alive?)
+                   ;;                  (repl/connect "ws://localhost:9001")))]
                    :aliases {"cleantest" ["do" "clean," "cljx" "once," "test,"
                                           "cljsbuild" "test"]
                              "jtest" ["do" "cljx" "once," "test"]
