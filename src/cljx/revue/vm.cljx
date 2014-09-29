@@ -281,7 +281,9 @@
 ;;; `LSET` pops a value off the stack and puts it into environment
 ;;; location `[frame slot]`.  `name` is the name of the variable in
 ;;; the environment, `source` is the source expression that was
-;;; compiled into this instruction.
+;;; compiled into this instruction.  As a special case, if `slot` is
+;;; equal to the size of the respective frame, this frame is extended
+;;; by an additional slot.
 (defrecord LSET [frame slot name source]
   VmInst
   (-step [this vm-state]
@@ -294,7 +296,8 @@
     'LSET))
 
 ;;; `GVAR` pushes the value of the global variable `name` onto the
-;;; stack.
+;;; stack.  If `name` is not defined in the global environment, `nil`
+;;; is pushed onto the stack.
 (defrecord GVAR [name]
   VmInst
   (-step [this vm-state]
@@ -310,8 +313,8 @@
   VmInst
   (-step [this vm-state]
     (assoc vm-state
-      :global-env (assoc (:global-env vm-state) name (peek (:stack this)))
-      :stack (pop (:stack this))))
+      :global-env (assoc (:global-env vm-state) name (peek (:stack vm-state)))
+      :stack (pop (:stack vm-state))))
   (-opcode [this]
     'GSET))
 
@@ -323,12 +326,18 @@
   (-opcode [this]
     'POP))
 
-
-;;; `CONST` pushes a constant value onto the stack.
+;;; `CONST` pushes a constant value onto the stack.  The `value`
+;;; parameter is a Clojure value that is converted to VM
+;;; representation by `CONST`.
 (defrecord CONST [value source]
   VmInst
   (-step [this vm-state]
-    (update-in vm-state [:stack] conj (:value this)))
+    (let [value (:value this)
+          {:keys [stack store]} vm-state
+          [value new-store] (mem/->vm value store)]
+      (assoc vm-state
+        :stack (conj stack value)
+        :store new-store)))
   (-opcode [this]
     'CONST))
 

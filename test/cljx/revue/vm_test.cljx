@@ -172,7 +172,89 @@
     (let [env (vm/->Env [[2 3] [0 1]])
           state {:env env :stack '(4 5)}]
       (is (= (vm/-step (vm/->LSET 0 0 nil nil) state)
-             {:env (vm/->Env [[2 3] [4 1]]) :stack '(5)})))))
+             {:env (vm/->Env [[2 3] [4 1]]) :stack '(5)}))
+      (is (= (vm/-step (vm/->LSET 0 1 nil nil) state)
+             {:env (vm/->Env [[2 3] [0 4]]) :stack '(5)}))
+      (is (= (vm/-step (vm/->LSET 0 2 nil nil) state)
+             {:env (vm/->Env [[2 3] [0 1 4]]) :stack '(5)}))
+      (is (= (vm/-step (vm/->LSET 1 0 nil nil) state)
+             {:env (vm/->Env [[4 3] [0 1]]) :stack '(5)}))
+      (is (= (vm/-step (vm/->LSET 1 1 nil nil) state)
+             {:env (vm/->Env [[2 4] [0 1]]) :stack '(5)})))))
+
+(deftest LSET-step-02
+  (testing "LSET -step function, out of bounds.")
+    (let [env (vm/->Env [[2 3] [0 1]])
+          state {:env env :stack '(4 5)}]
+      (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
+                   (vm/-step (vm/->LSET 2 0 nil nil) state)))
+      (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
+                   (vm/-step (vm/->LSET 0 3 nil nil) state)))))
+
+(deftest GVAR-01
+  (testing "GVAR"
+    (let [state {:global-env {'foo 123} :stack '(1)}]
+      (is (= (vm/-step (vm/->GVAR 'foo) state)
+             {:global-env {'foo 123} :stack '(123 1)}))
+      (is (= (vm/-step (vm/->GVAR 'bar) state)
+             {:global-env {'foo 123} :stack '(nil 1)})))))
+
+(deftest GSET-01
+  (testing "GSET"
+    (let [state {:global-env {'foo 123} :stack '(1 2)}]
+      (is (= (vm/-step (vm/->GSET 'foo nil) state)
+             {:global-env {'foo 1} :stack '(2)}))
+      (is (= (vm/-step (vm/->GSET 'bar nil) state)
+             {:global-env {'foo 123 'bar 1} :stack '(2)})))))
+
+
+(deftest POP-01
+  (testing "POP"
+    (is (= (vm/-step (vm/->POP nil) {:stack '(1 2 3)})
+           {:stack '(2 3)}))
+    (is (= (vm/-step (vm/->POP nil) {:stack '(1)})
+           {:stack '()}))
+    (is (thrown? #+clj java.lang.IllegalStateException #+cljs js/Error
+                 (vm/-step (vm/->POP nil) {:stack '()})))))
+
+(deftest CONST-01
+  (testing "CONST: numbers"
+    (is (= (vm/-step (vm/->CONST 0 nil) {:stack '(1 2 3) :store []})
+           {:stack '(0 1 2 3) :store []}))
+    (is (= (vm/-step (vm/->CONST 0 nil) {:stack '(1) :store []})
+           {:stack '(0 1) :store []}))
+    (is (= (vm/-step (vm/->CONST 0 nil) {:stack '() :store []})
+           {:stack '(0) :store []}))))
+
+(deftest CONST-02
+  (testing "CONST: symbols"
+    (is (= (vm/-step (vm/->CONST 'foo nil) {:stack '(1 2 3) :store []})
+           {:stack '(foo 1 2 3) :store []}))
+    (is (= (vm/-step (vm/->CONST 'foo nil) {:stack '(1) :store []})
+           {:stack '(foo 1) :store []}))
+    (is (= (vm/-step (vm/->CONST 'foo nil) {:stack '() :store []})
+           {:stack '(foo) :store []}))))
+
+(deftest CONST-03
+  (testing "CONST: lists"
+    (is (= (vm/-step (vm/->CONST () nil) {:stack '(1) :store []})
+           {:stack '(() 1) :store []}))
+    (is (= (vm/-step (vm/->CONST '(2) nil) {:stack '(1) :store []})
+           {:stack '(#revue.mem.VmCons{:address 0} 1) :store [2 ()]}))
+    (is (= (vm/-step (vm/->CONST '(2 3 4) nil) {:stack '(1) :store []})
+           {:stack '(#revue.mem.VmCons{:address 4} 1),
+            :store [4 ()
+                    3 #revue.mem.VmCons{:address 0}
+                    2 #revue.mem.VmCons{:address 2}]}))))
+
+(deftest CONST-04
+  (testing "CONST: arrays"
+    (is (= (vm/-step (vm/->CONST [] nil) {:stack '(1) :store []})
+           {:stack '(#revue.mem.VmVector{:address 0, :size 0} 1), :store []}))
+    (is (= (vm/-step (vm/->CONST [2] nil) {:stack '(1) :store []})
+           {:stack '(#revue.mem.VmVector{:address 0, :size 1} 1), :store [2]}))
+    (is (= (vm/-step (vm/->CONST [2 3 4] nil) {:stack '(1) :store []})
+           {:stack '(#revue.mem.VmVector{:address 0, :size 3} 1), :store [2 3 4]}))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
