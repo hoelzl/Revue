@@ -213,7 +213,7 @@
 
 (defn make-fn
   "Create a new bytecode-interpreted function."
-  [{:keys [code env name args]}]
+  [& {:keys [code env name args]}]
   {:type :bytecode-function
    :code code
    :env env

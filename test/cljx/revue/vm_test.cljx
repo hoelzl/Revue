@@ -145,20 +145,6 @@
       (is (= (vm/env-value vm-state {:frame 1 :slot 1}) 3))
       (is (= (vm/env-value vm-state {:frame 1 :slot 2}) 4)))))
 
-(deftest set-local-var-from-stack-01
-  (testing "set-local-var-from-stack"
-    (let [vm-state {:env (vm/->Env [[2 3 4] [0 1]]) :stack '(5 6)}]
-      (is (= (vm/set-local-var-from-stack vm-state {:frame 0 :slot 0})
-             {:env (vm/->Env [[2 3 4] [5 1]]) :stack '(6)}))
-      (is (= (vm/set-local-var-from-stack vm-state {:frame 0 :slot 1})
-             {:env (vm/->Env [[2 3 4] [0 5]]) :stack '(6)}))
-      (is (= (vm/set-local-var-from-stack vm-state {:frame 1 :slot 0})
-             {:env (vm/->Env [[5 3 4] [0 1]]) :stack '(6)}))
-      (is (= (vm/set-local-var-from-stack vm-state {:frame 1 :slot 1})
-             {:env (vm/->Env [[2 5 4] [0 1]]) :stack '(6)}))
-      (is (= (vm/set-local-var-from-stack vm-state {:frame 1 :slot 2})
-             {:env (vm/->Env [[2 3 5] [0 1]]) :stack '(6)})))))
-
 (deftest LVAR-step-01
   (testing "LVAR -step function."
     (let [env (vm/->Env [[2 3] [0 1]])
@@ -185,7 +171,7 @@
   (testing "LSET -step function"
     (let [env (vm/->Env [[2 3] [0 1]])
           state {:env env :stack '(4 5)}]
-      (is (= (vm/-step (vm/->LSET 0 0 nil) state)
+      (is (= (vm/-step (vm/->LSET 0 0 nil nil) state)
              {:env (vm/->Env [[2 3] [4 1]]) :stack '(5)})))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
