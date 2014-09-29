@@ -49,9 +49,9 @@
   provides a suitable class for Clojure and ClojureScript.  Currently
   there is no way to provide specialized classes for different error
   types."
-  [msg]
+  [& msg]
   (throw (#+clj java.lang.Exception. #+cljs js/Error.
-                msg)))
+                (apply str msg))))
 
 
 

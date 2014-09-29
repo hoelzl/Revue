@@ -15,14 +15,30 @@
 ;;; Local Environments
 ;;; ==================
 
-(defprotocol IEnv
+;;; Local environments are implemented as a sequence of frames.  We
+;;; have to be able to retreive values by giving an index of the form
+;;; `[frame slot]`, and we need to be able to push new frames at index
+;;; 0.  This means that none of the existing Clojure data structures
+;;; is a good fit: Lists don't allow direct indexing and arrays
+;;; conjoin new members at the end of the array.  We therefore define
+;;; a new data structure `Env` that is essentially a wrapper around an
+;;; array that reverses the indices, i.e., the last element of the
+;;; array `frames` is accessed with index 0, the first element with
+;;; index `(dec (count frames))`.  Unfortunately this is not as simple
+;;; as it should be, and to make things worse, we have to implement
+;;; two slightly different versions for Clojure and ClojureScript
+;;; since the protocol names and methods don't match.
+
+(defprotocol ILocalEnv
+  "The protocol for local environments: Return a sequence of
+  environment frames."
   (frames [this]))
 
 (declare ->Env)
 
 #+clj
 (deftype Env [frames]
-  IEnv
+  ILocalEnv
   (frames [this]
     frames)
   clojure.lang.Counted
@@ -91,7 +107,7 @@
 
 #+cljs
 (deftype Env [frames]
-  IEnv
+  ILocalEnv
   (frames [_]
     frames)
   Object
@@ -175,14 +191,6 @@
         frame-vector (nth env frame)]
     (nth frame-vector slot)))
 
-(defn set-local-var-from-stack
-  "Set the value at position `[frame slot]` in `vm-state`'s
-  environment to `new-value`."
-  [{:keys [env stack] :as vm-state} {:keys [frame slot]}]
-  (assoc vm-state
-    :env (assoc-in (:env vm-state) [frame slot] (peek stack))
-    :stack (pop (:stack vm-state))))
-
 
 ;;; The Global Environment
 ;;; ======================
@@ -265,11 +273,14 @@
   (-opcode [this]
     'LVAR))
 
-(defrecord LSET [frame slot source]
+(defrecord LSET [frame slot name source]
   VmInst
   (-step [this vm-state]
-    (let [stack (:stack vm-state)]
-      (set-local-var-from-stack vm-state this)))
+    (let [{:keys [env stack]} vm-state
+          {:keys [frame slot]} this]
+      (assoc vm-state
+        :env (assoc-in env [frame slot] (peek stack))
+        :stack (pop stack))))
   (-opcode [this]
     'LSET))
 
@@ -386,12 +397,12 @@
   frame."
   [n-args vm-state & n-rest-args]
   (let [stack (:stack vm-state)
-        tmp-frame (vec (take n-args stack))
-        tmp-stack (drop n-args stack)
+        [tmp-frame tmp-stack] (split-at n-args stack)
         [new-frame new-stack] (if-not n-rest-args
-                                [tmp-frame (vec tmp-stack)]
-                                [(conj tmp-frame (vec (take n-rest-args tmp-stack)))
-                                 (vec (drop n-rest-args tmp-stack))])]
+                                [(vec tmp-frame) (vec tmp-stack)]
+                                (let [[rest-args tmp-stack-2] (split-at n-rest-args tmp-stack)]
+                                  [(conj (vec tmp-frame) (vec rest-args))
+                                   (vec tmp-stack-2)]))]
     (assoc vm-state
       :env (conj (:env vm-state) new-frame)
       :stack new-stack)))
@@ -399,11 +410,11 @@
 (defrecord ARGS [n-args name source]
   VmInst
   (-step [this vm-state]
-    (let [n-args (:n-args this)]
+    (let [{:keys [n-args name]} (:n-args this)]
       (if-not (= n-args (:n-args vm-state))
         (assoc vm-state
           :stopped? true
-          :reason (str "Function " (:name this) " called with " (:n-args vm-state)
+          :reason (str "Function " name " called with " (:n-args vm-state)
                        " arguments, but wants exactly " n-args "."))
         (move-args-from-stack-to-env n-args vm-state))))
   (-opcode [this]
@@ -412,12 +423,12 @@
 (defrecord ARGS* [n-args name source]
   VmInst
   (-step [this vm-state]
-    (let [n-args (:n-args this)
+    (let [{:keys [n-args name]} this
           supplied-args (:n-args vm-state)]
       (if-not (<= n-args supplied-args)
         (assoc vm-state
           :stopped? true
-          :reason (str "Function " (:name this) " called with " supplied-args
+          :reason (str "Function " name " called with " supplied-args
                        " arguments, but wants at least " n-args))
         (move-args-from-stack-to-env n-args vm-state (- supplied-args n-args)))))
   (-opcode [this]
@@ -434,16 +445,14 @@
 (defrecord PRIM [clj-code source]
   VmInst
   (-step [this vm-state]
-    (let [n-args (:n-args vm-state)
-          stack (:stack vm-state)
-          raw-args (take n-args stack)
-          new-stack (drop n-args stack)]
+    (let [{:keys [n-args stack]} vm-state
+          [raw-args new-stack] (split-at n-args stack)]
       (assoc vm-state
         :stack (conj new-stack (apply (:clj-code this) raw-args)))))
   (-opcode [this]
     'PRIM))
 
-(defrecord SET-CC [source]
+(defrecord SET-CC []
   VmInst
   (-step [this vm-state]
     (update-in vm-state [:stack] peek))
@@ -454,11 +463,11 @@
   VmInst
   (-step [this vm-state]
     (assoc vm-state :stack
-           (make-fn :code (assemble '((ARGS 1)
+           (make-fn :code (assemble '((ARGS 1 'CC "%built-in")
                                       (LVAR 1 0 stack)
                                       (SET-CC)
                                       (LVAR 0 0 fun)
-                                      (RETURN)))
+                                      (RETURN "%built-in")))
                     :env (->Env [(:stack vm-state)])
                     :name '%cc
                     :args '[fun])))
@@ -478,10 +487,10 @@
   VmInst
   (-step [this vm-state]
     (let [stack (:stack vm-state)
-          args (mem/->clojure (vec (take n stack)))
-          new-stack (vec (drop n stack))]
+          [raw-args new-stack] (split-at n stack)
+          args (mem/->clojure (vec raw-args))]
       (assoc vm-state
-        :stack (conj new-stack (apply (:clj-code this) args)))))
+        :stack (conj (vec new-stack) (apply (:clj-code this) args)))))
   (-opcode [this]
     'OP))
 
@@ -502,7 +511,45 @@
 ;;; The Assembler
 ;;; =============
 
-(defn assemble [])
+(def opcodes
+  {'LVAR    {:opcode ->LVAR   :arity 3}
+   'LSET    {:opcode ->LSET   :arity 4}
+   'GVAR    {:opcode ->GVAR   :arity 2}
+   'GSET    {:opcode ->GSET   :arity 2}
+   'POP     {:opcode ->POP    :arity 1}
+   'CONST   {:opcode ->CONST  :arity 2}
+   'JUMP    {:opcode ->JUMP   :arity 2}
+   'FJUMP   {:opcode ->FJUMP  :arity 2}
+   'TJUMP   {:opcode ->TJUMP  :arity 2}
+   'SAVE    {:opcode ->SAVE   :arity 1}
+   'RETURN  {:opcode ->RETURN :arity 1}
+   'CALLJ   {:opcode ->CALLJ  :arity 2}
+   'ARGS    {:opcode ->ARGS   :arity 3}
+   'ARGS*   {:opcode ->ARGS*  :arity 3}
+   'FN      {:opcode ->FN     :arity 2}
+   'PRIM    {:opcode ->PRIM   :arity 2}
+   'SET-CC  {:opcode ->SET-CC :arity 0}
+   'CC      {:opcode ->CC     :arity 1}
+   'HALT    {:opcode ->HALT   :arity 1}
+   'OP      {:opcode ->OP     :arity 3}})
+
+(defn assemble-inst [inst]
+  (let [[opcode & args] inst]
+    (if-let [opcode-descr (get opcodes opcode)]
+      (cond (= (:arity opcode-descr) (count args))
+            (apply (:opcode opcode-descr) args)
+            (= (:arity opcode-descr) (inc (count args)))
+            (apply (:opcode opcode-descr) (conj (vec args) "no source location"))
+            :else
+            (util/error "Opcode " opcode " applied to " (count args)
+                        " arguments, but wants " (:arity opcode-descr)))
+      (util/error "Unknown opcode " opcode " in " inst "."))))
+
+(defn assemble
+  "Assemble a sequence of instructions from Clojure lists into
+  `VmInst` data structures."
+  [instructions]
+  (map assemble-inst instructions))
 
 ;;; The VM Proper
 ;;; =============
