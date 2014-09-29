@@ -230,6 +230,7 @@
    :global-env (make-global-env)
    :env ()
    :stack ()
+   :store []
    :n-args 0
    :stopped? false})
 
@@ -265,6 +266,10 @@
   (-step [this vm-state])
   (-opcode [this]))
 
+;;; `LVAR` pushes the value of the local variable in environment
+;;; location `[frame slot]` onto the stack.  `source` is the source
+;;; code expression that was compiled into this instruction which is
+;;; also the name of the variable in the environment.
 (defrecord LVAR [frame slot source]
   VmInst
   (-step [this vm-state]
@@ -273,6 +278,10 @@
   (-opcode [this]
     'LVAR))
 
+;;; `LSET` pops a value off the stack and puts it into environment
+;;; location `[frame slot]`.  `name` is the name of the variable in
+;;; the environment, `source` is the source expression that was
+;;; compiled into this instruction.
 (defrecord LSET [frame slot name source]
   VmInst
   (-step [this vm-state]
@@ -284,7 +293,9 @@
   (-opcode [this]
     'LSET))
 
-(defrecord GVAR [name source]
+;;; `GVAR` pushes the value of the global variable `name` onto the
+;;; stack.
+(defrecord GVAR [name]
   VmInst
   (-step [this vm-state]
     (assoc vm-state
@@ -293,6 +304,8 @@
   (-opcode [this]
     'GVAR))
 
+;;; `GSET` pops a value off the stack and stores it in global variable
+;;; `name`.
 (defrecord GSET [name source]
   VmInst
   (-step [this vm-state]
@@ -302,6 +315,7 @@
   (-opcode [this]
     'GSET))
 
+;;; `POP` pops a value off the stack and discards it.
 (defrecord POP [source]
   VmInst
   (-step [this vm-state]
@@ -309,6 +323,8 @@
   (-opcode [this]
     'POP))
 
+
+;;; `CONST` pushes a constant value onto the stack.
 (defrecord CONST [value source]
   VmInst
   (-step [this vm-state]
@@ -316,6 +332,8 @@
   (-opcode [this]
     'CONST))
 
+;;; `JUMP` jumps unconditially to `target` which is the index of the
+;;; pc in the current function (a non-negative integer).
 (defrecord JUMP [target source]
   VmInst
   (-step [this vm-state]
@@ -323,30 +341,43 @@
   (-opcode [this]
     'JUMP))
 
+;;; `FJUMP` pops a value off the stack and jumps to `target` if the
+;;; value is falsy.
 (defrecord FJUMP [target source]
   VmInst
   (-step [this vm-state]
     (let [stack (:stack vm-state)
-          value (peek stack)
-          new-state (update-in vm-state [:stack] pop)]
-      (if (not value)
-        (update-in new-state [:pc] (:target this))
-        new-state)))
+          value (peek stack)]
+      (if (not (mem/->clojure value))
+        (assoc vm-state
+          :pc (:target this)
+          :stack (pop stack))
+        (assoc vm-state
+          :stack (pop stack)))))
   (-opcode [this]
     'FJUMP))
 
+;;; `TJUMP` pops a value off the stack and jumps to `target` when the
+;;; value is truthy.
 (defrecord TJUMP [target source]
   VmInst
   (-step [this vm-state]
     (let [stack (:stack vm-state)
-          value (peek stack)
-          new-state (update-in vm-state [:stack] pop)]
-      (if value
-        (update-in new-state [:pc] (:target this))
-        new-state)))
+          value (peek stack)]
+      (if (mem/->clojure value)
+        (assoc vm-state
+          :pc (:target this)
+          :stack (pop stack))
+        (assoc vm-state
+          :stack (pop stack)))))
   (-opcode [this]
     'TJUMP))
 
+;;; `SAVE` creates a return address from the current program counter
+;;; and pushes it on the stack.  Note that since we increment the PC
+;;; before executing the instruction (in the function `step` defined
+;;; below), the return address points to the instruction *after* the
+;;; currently executing one, which is of course what we want.
 (defrecord SAVE [source]
   VmInst
   (-step [this vm-state]
@@ -355,6 +386,10 @@
   (-opcode [this]
     'SAVE))
 
+;;; `RETURN` returns from a function.  To this end it removes the
+;;; *second* element from the stack (which is the return address to
+;;; which we should jump), but leaves the topmost element (which is
+;;; the return value) on the stack.
 (defrecord RETURN [source]
   VmInst
   (-step [this vm-state]
@@ -370,14 +405,16 @@
   (-opcode [this]
     'RETURN))
 
+;;; `CALLJ` calls a function by jumping to its entry point.  To this
+;;; end, it pops the function that should be invoked from the stack
+;;; and builds a new state that starts the execution of the new
+;;; function at the beginning.
 (defrecord CALLJ [n-args source]
   VmInst
   (-step [this vm-state]
-    (let [old-stack (:stack vm-state)
-          function (second old-stack)
-          new-stack (vec (nthrest old-stack 2))]
+    (let [[function & new-stack] (:stack vm-state)]
       (assoc vm-state
-        :stack new-stack
+        :stack (vec new-stack)
         :function function
         :code (:code function)
         :env (:env function)
@@ -407,6 +444,12 @@
       :env (conj (:env vm-state) new-frame)
       :stack new-stack)))
 
+;;; `ARGS` is the first bytecode instruction executed by functions
+;;; with fixed arity.  It checks that the arity of the currently
+;;; executing function matches the number of arguments that were
+;;; passed to this call.  If this is the case, it pops `n-args` values
+;;; of the stack and puts them into a new environment frame.
+;;; Otherwise it stops the computation with an error message.
 (defrecord ARGS [n-args name source]
   VmInst
   (-step [this vm-state]
@@ -420,6 +463,13 @@
   (-opcode [this]
     'ARGS))
 
+;;; `ARGS*` is the first bytecode instruction executed by functions
+;;; with variable arity.  It checks that the number of required
+;;; arguments of the currently executing function is less than the
+;;; number of arguments that were passed to this call.  If this is the
+;;; case, it pops `n-args` values of the stack and puts them into a
+;;; new environment frame.  Otherwise it stops the computation with an
+;;; error message.
 (defrecord ARGS* [n-args name source]
   VmInst
   (-step [this vm-state]
@@ -434,6 +484,8 @@
   (-opcode [this]
     'ARGS*))
 
+;;; `FN` creates a new closure.  It takes the bytecode-compiled
+;;; `function` and associates it with the current environment.
 (defrecord FN [function source]
   VmInst
   (-step [this vm-state]
@@ -442,16 +494,31 @@
   (-opcode [this]
     'FN))
 
+;;; `PRIM` invokes a primitive instruction.  Primitives are
+;;; implemented as Clojure functions that receive the store as first
+;;; argument, the raw VM values as other arguments, and they have to
+;;; return a result that satisfies the `StoredData` protocol and a new
+;;; store.  No checking is performed by the VM whether the primitive
+;;; was invoked with the correct number of arguments; therefore bad
+;;; calls to primitives may crash the VM.  Primitives are useful for
+;;; functions that need low-level access to the memory system; most
+;;; functions are better implemented as operators (see `OP` below); in
+;;; particular user-visible functionality should never be implemented
+;;; as primitive.
 (defrecord PRIM [clj-code source]
   VmInst
   (-step [this vm-state]
     (let [{:keys [n-args stack]} vm-state
-          [raw-args new-stack] (split-at n-args stack)]
+          [raw-args new-stack] (split-at n-args stack)
+          [result new-store] (apply (:clj-code this) (:store vm-state) raw-args)]
       (assoc vm-state
-        :stack (conj new-stack (apply (:clj-code this) raw-args)))))
+        :stack (conj new-stack result)
+        :store new-store)))
   (-opcode [this]
     'PRIM))
 
+;;; `SET-CC` pops a value off the stack and uses this value as the new
+;;; continuation.
 (defrecord SET-CC []
   VmInst
   (-step [this vm-state]
@@ -459,21 +526,30 @@
   (-opcode [this]
     'SET-CC))
 
+;;; `CC` pushes a function onto the stack that captures the current
+;;; environment and restores it when it is invoked.  TODO: improve
+;;; explanation.
 (defrecord CC [source]
   VmInst
   (-step [this vm-state]
-    (assoc vm-state :stack
-           (make-fn :code (assemble '((ARGS 1 'CC "%built-in")
-                                      (LVAR 1 0 stack)
-                                      (SET-CC)
-                                      (LVAR 0 0 fun)
-                                      (RETURN "%built-in")))
-                    :env (->Env [(:stack vm-state)])
-                    :name '%cc
-                    :args '[fun])))
+    (assoc vm-state
+      :stack (make-fn :code (assemble '((ARGS 1 'CC "%built-in")
+                                        (LVAR 1 0 stack)
+                                        (SET-CC)
+                                        (LVAR 0 0 fun)
+                                        (RETURN "%built-in")))
+                      :env (->Env [(:stack vm-state)])
+                      :name '%cc
+                      :args '[fun])))
   (-opcode [this]
     'CC))
 
+
+;;; `HALT` stops the execution of the VM; if `step` is invoked after
+;;; `HALT` was called it will return the same state indefinitely.
+;;; This is done by adding a `stopped?` key to the state; `step`
+;;; checks for this key and does not evaluate any instructions when it
+;;; is found in the state.
 (defrecord HALT [source]
   VmInst
   (-step [this vm-state]
@@ -483,14 +559,22 @@
   (-opcode [this]
     'HALT))
 
+;;; `OP` invokes an operator defined in Clojure code.  These operators
+;;; receive their arguments as Clojure data structures and return
+;;; their result as Clojure data structure; `OP` performs the
+;;; necessary conversions from and to the VM representation.
+;;; TODO: argument checks, etc.
 (defrecord OP [n clj-code source]
   VmInst
   (-step [this vm-state]
     (let [stack (:stack vm-state)
           [raw-args new-stack] (split-at n stack)
-          args (mem/->clojure (vec raw-args))]
+          args (mem/->clojure (vec raw-args))
+          clj-result (apply (:clj-code this) args)
+          [result new-store] (mem/->vm clj-result (:store vm-state))]
       (assoc vm-state
-        :stack (conj (vec new-stack) (apply (:clj-code this) args)))))
+        :stack (conj (vec new-stack) result)
+        :store new-store)))
   (-opcode [this]
     'OP))
 
@@ -512,37 +596,46 @@
 ;;; =============
 
 (def opcodes
-  {'LVAR    {:opcode ->LVAR   :arity 3}
-   'LSET    {:opcode ->LSET   :arity 4}
-   'GVAR    {:opcode ->GVAR   :arity 2}
-   'GSET    {:opcode ->GSET   :arity 2}
-   'POP     {:opcode ->POP    :arity 1}
-   'CONST   {:opcode ->CONST  :arity 2}
-   'JUMP    {:opcode ->JUMP   :arity 2}
-   'FJUMP   {:opcode ->FJUMP  :arity 2}
-   'TJUMP   {:opcode ->TJUMP  :arity 2}
-   'SAVE    {:opcode ->SAVE   :arity 1}
-   'RETURN  {:opcode ->RETURN :arity 1}
-   'CALLJ   {:opcode ->CALLJ  :arity 2}
-   'ARGS    {:opcode ->ARGS   :arity 3}
-   'ARGS*   {:opcode ->ARGS*  :arity 3}
-   'FN      {:opcode ->FN     :arity 2}
-   'PRIM    {:opcode ->PRIM   :arity 2}
-   'SET-CC  {:opcode ->SET-CC :arity 0}
-   'CC      {:opcode ->CC     :arity 1}
-   'HALT    {:opcode ->HALT   :arity 1}
-   'OP      {:opcode ->OP     :arity 3}})
+  "A list of the opcodes implemented by the VM.  Each opcode specifies
+  a constructor (that generates the bytecode instruction), an arity
+  and whether the last argument of the constructor is a source
+  location."
+  {'LVAR    {:constructor ->LVAR   :arity 3 :source true}
+   'LSET    {:constructor ->LSET   :arity 4 :source true}
+   'GVAR    {:constructor ->GVAR   :arity 1 :source false}
+   'GSET    {:constructor ->GSET   :arity 2 :source true}
+   'POP     {:constructor ->POP    :arity 1 :source true}
+   'CONST   {:constructor ->CONST  :arity 2 :source true}
+   'JUMP    {:constructor ->JUMP   :arity 2 :source true}
+   'FJUMP   {:constructor ->FJUMP  :arity 2 :source true}
+   'TJUMP   {:constructor ->TJUMP  :arity 2 :source true}
+   'SAVE    {:constructor ->SAVE   :arity 1 :source true}
+   'RETURN  {:constructor ->RETURN :arity 1 :source true}
+   'CALLJ   {:constructor ->CALLJ  :arity 2 :source true}
+   'ARGS    {:constructor ->ARGS   :arity 3 :source true}
+   'ARGS*   {:constructor ->ARGS*  :arity 3 :source true}
+   'FN      {:constructor ->FN     :arity 2 :source true}
+   'PRIM    {:constructor ->PRIM   :arity 2 :source true}
+   'SET-CC  {:constructor ->SET-CC :arity 0 :source false}
+   'CC      {:constructor ->CC     :arity 1 :source true}
+   'HALT    {:constructor ->HALT   :arity 1 :source true}
+   'OP      {:constructor ->OP     :arity 3 :source true}})
 
 (defn assemble-inst [inst]
   (let [[opcode & args] inst]
     (if-let [opcode-descr (get opcodes opcode)]
-      (cond (= (:arity opcode-descr) (count args))
-            (apply (:opcode opcode-descr) args)
-            (= (:arity opcode-descr) (inc (count args)))
-            (apply (:opcode opcode-descr) (conj (vec args) "no source location"))
-            :else
-            (util/error "Opcode " opcode " applied to " (count args)
-                        " arguments, but wants " (:arity opcode-descr)))
+      (cond
+       ;; Default case: operator arity and call arity match
+       (= (:arity opcode-descr) (count args))
+       (apply (:constructor opcode-descr) args)
+       ;; Convenience: operator takes source argument, and call arity
+       ;; is one less than operator arity.
+       (and (:source opcode-descr) (= (:arity opcode-descr) (inc (count args))))
+       (apply (:constructor opcode-descr) (conj (vec args) "no source location"))
+       ;; Default: wrong arity
+       :else
+       (util/error "Opcode " opcode " applied to " (count args)
+                   " arguments, but wants " (:arity opcode-descr)))
       (util/error "Unknown opcode " opcode " in " inst "."))))
 
 (defn assemble
