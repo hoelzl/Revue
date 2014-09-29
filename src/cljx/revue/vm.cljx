@@ -391,11 +391,12 @@
   (-opcode [this]
     'TJUMP))
 
-;;; `SAVE` creates a return address from the current program counter
-;;; and pushes it on the stack.  Note that since we increment the PC
-;;; before executing the instruction (in the function `step` defined
-;;; below), the return address points to the instruction *after* the
-;;; currently executing one, which is of course what we want.
+;;; `SAVE` creates a return address from the current function, program
+;;; counter and environment and pushes it on the stack.  Note that
+;;; since we increment the PC before executing the instruction (in the
+;;; function `step` defined below), the return address points to the
+;;; instruction *after* the currently executing one, which is of
+;;; course what we want.
 (defrecord SAVE [source]
   VmInst
   (-step [this vm-state]
@@ -415,7 +416,7 @@
           return-address (second stack)
           function (:function return-address)]
       (assoc vm-state
-        :stack (conj (vec (nthrest stack 2)) (first stack))
+        :stack (cons (first stack) (drop 2 stack))
         :function function
         :code (:code function)
         :env (:env return-address)

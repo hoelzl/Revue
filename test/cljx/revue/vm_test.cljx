@@ -149,9 +149,9 @@
   (testing "make-global-env"
     (is (= (vm/make-global-env) [{} []]))
     (is (= (vm/make-global-env {:foo ['foo '(bar)] :quux [3 2 1]})
-           [{:foo #revue.mem.VmVector{:address 2, :size 2}
-             :quux #revue.mem.VmVector{:address 4, :size 3}}
-            ['bar () 'foo #revue.mem.VmCons{:address 0} 3 2 1]]))))
+           [{:foo (mem/->VmVector 2 2)
+             :quux (mem/->VmVector 4 3)}
+            ['bar () 'foo (mem/->VmCons 0) 3 2 1]]))))
 
 (deftest LVAR-step-01
   (testing "LVAR -step function."
@@ -248,21 +248,21 @@
     (is (= (vm/-step (vm/->CONST () nil) {:stack '(1) :store []})
            {:stack '(() 1) :store []}))
     (is (= (vm/-step (vm/->CONST '(2) nil) {:stack '(1) :store []})
-           {:stack '(#revue.mem.VmCons{:address 0} 1) :store [2 ()]}))
+           {:stack (list (mem/->VmCons 0) 1) :store [2 ()]}))
     (is (= (vm/-step (vm/->CONST '(2 3 4) nil) {:stack '(1) :store []})
-           {:stack '(#revue.mem.VmCons{:address 4} 1),
+           {:stack (list (mem/->VmCons 4) 1),
             :store [4 ()
-                    3 #revue.mem.VmCons{:address 0}
-                    2 #revue.mem.VmCons{:address 2}]}))))
+                    3 (mem/->VmCons 0)
+                    2 (mem/->VmCons 2)]}))))
 
 (deftest CONST-04
   (testing "CONST: arrays"
     (is (= (vm/-step (vm/->CONST [] nil) {:stack '(1) :store []})
-           {:stack '(#revue.mem.VmVector{:address 0, :size 0} 1), :store []}))
+           {:stack (list (mem/->VmVector 0 0) 1), :store []}))
     (is (= (vm/-step (vm/->CONST [2] nil) {:stack '(1) :store []})
-           {:stack '(#revue.mem.VmVector{:address 0, :size 1} 1), :store [2]}))
+           {:stack (list (mem/->VmVector 0 1) 1), :store [2]}))
     (is (= (vm/-step (vm/->CONST [2 3 4] nil) {:stack '(1) :store []})
-           {:stack '(#revue.mem.VmVector{:address 0, :size 3} 1), :store [2 3 4]}))))
+           {:stack (list (mem/->VmVector 0 3) 1), :store [2 3 4]}))))
 
 (deftest JUMP-01
   (testing "JUMP"
@@ -281,6 +281,31 @@
            {:pc 0 :stack '()}))
     (is (= (vm/-step (vm/->TJUMP 10 nil) {:pc 0 :stack '(true)})
            {:pc 10 :stack '()}))))
+
+(deftest SAVE-01
+  (testing "SAVE"
+    (is (= (vm/-step (vm/->SAVE nil) {:stack '(4) :function 'foo :pc 5 :env (vm/->Env [[1 2 3]])})
+           {:stack (list {:type :return-address :function 'foo :pc 5 :env (vm/->Env [[1 2 3]])}
+                         4)
+            :function 'foo :pc 5 :env (vm/->Env [[1 2 3]])}))))
+
+
+(deftest RETURN-01
+  (testing "RETURN"
+    (is (= (vm/-step (vm/->RETURN nil)
+                     {:stack (list 1
+                                   {:type :return-address
+                                    :function {:code (list (vm/->ARGS 1 nil nil)
+                                                           (vm/->RETURN nil))}
+                                    :pc 1
+                                    :env (vm/->Env [[1 2 3]])}
+                                   4)
+            :function 'bar :pc 10 :env (vm/->Env [[4 5]])})
+           {:stack '(1 4)
+            :function {:code (list (vm/->ARGS 1 nil nil) (vm/->RETURN nil))}
+            :code (list (vm/->ARGS 1 nil nil) (vm/->RETURN nil))
+            :pc 1
+            :env (vm/->Env [[1 2 3]])}))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
