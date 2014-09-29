@@ -416,7 +416,7 @@
           return-address (second stack)
           function (:function return-address)]
       (assoc vm-state
-        :stack (cons (first stack) (drop 2 stack))
+        :stack (cons (first stack) (list* (drop 2 stack)))
         :function function
         :code (:code function)
         :env (:env return-address)
@@ -451,14 +451,14 @@
   environment frame, the last `n-rest-args` are collected into a
   vector and put in the (`n-args` + 1)st slot in the new environment
   frame."
-  [n-args vm-state & n-rest-args]
+  [n-args vm-state & [n-rest-args]]
   (let [stack (:stack vm-state)
         [tmp-frame tmp-stack] (split-at n-args stack)
         [new-frame new-stack] (if-not n-rest-args
-                                [(vec tmp-frame) (vec tmp-stack)]
+                                [(vec tmp-frame) (apply list tmp-stack)]
                                 (let [[rest-args tmp-stack-2] (split-at n-rest-args tmp-stack)]
                                   [(conj (vec tmp-frame) (vec rest-args))
-                                   (vec tmp-stack-2)]))]
+                                   (apply list tmp-stack-2)]))]
     (assoc vm-state
       :env (conj (:env vm-state) new-frame)
       :stack new-stack)))
@@ -472,12 +472,12 @@
 (defrecord ARGS [n-args name source]
   VmInst
   (-step [this vm-state]
-    (let [{:keys [n-args name]} (:n-args this)]
+    (let [{:keys [n-args name]} this]
       (if-not (= n-args (:n-args vm-state))
         (assoc vm-state
           :stopped? true
           :reason (str "Function " name " called with " (:n-args vm-state)
-                       " arguments, but wants exactly " n-args "."))
+                       " argument(s), but wants exactly " n-args "."))
         (move-args-from-stack-to-env n-args vm-state))))
   (-opcode [this]
     'ARGS))
@@ -498,7 +498,7 @@
         (assoc vm-state
           :stopped? true
           :reason (str "Function " name " called with " supplied-args
-                       " arguments, but wants at least " n-args))
+                       " argument(s), but wants at least " n-args "."))
         (move-args-from-stack-to-env n-args vm-state (- supplied-args n-args)))))
   (-opcode [this]
     'ARGS*))

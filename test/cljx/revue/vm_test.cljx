@@ -289,23 +289,120 @@
                          4)
             :function 'foo :pc 5 :env (vm/->Env [[1 2 3]])}))))
 
-
 (deftest RETURN-01
   (testing "RETURN"
-    (is (= (vm/-step (vm/->RETURN nil)
-                     {:stack (list 1
-                                   {:type :return-address
-                                    :function {:code (list (vm/->ARGS 1 nil nil)
-                                                           (vm/->RETURN nil))}
-                                    :pc 1
-                                    :env (vm/->Env [[1 2 3]])}
-                                   4)
-            :function 'bar :pc 10 :env (vm/->Env [[4 5]])})
-           {:stack '(1 4)
-            :function {:code (list (vm/->ARGS 1 nil nil) (vm/->RETURN nil))}
-            :code (list (vm/->ARGS 1 nil nil) (vm/->RETURN nil))
-            :pc 1
-            :env (vm/->Env [[1 2 3]])}))))
+    (let [f {:code (list (vm/->ARGS 1 nil nil)
+                         (vm/->RETURN nil))}
+          ret-addr (vm/make-return-address
+                    {:function f
+                     :pc 1
+                     :env (vm/->Env [[1 2 3]])})]
+      (is (= (vm/-step (vm/->RETURN nil)
+                       {:stack (list 1 ret-addr 4)
+                        :function 'bar :pc 10 :env (vm/->Env [[4 5]])})
+             {:stack '(1 4)
+              :function f
+              :code (:code f)
+              :pc (:pc ret-addr)
+              :env (:env ret-addr)})))))
+
+(deftest CALLJ-01
+  (testing "CALLJ"
+    (let [f (vm/make-fn :code (list (vm/->ARGS 1 nil nil)
+                                    (vm/->RETURN nil))
+                        :env (vm/->Env [[1 2 3]])
+                        :name 'foo
+                        :args '(x))]
+      (is (= (vm/-step (vm/->CALLJ 1 nil)
+                       {:stack (list f 4)
+                        :function 'bar :pc 10 :env (vm/->Env [[4 5]])})
+             {:n-args 1
+              :stack '(4)
+              :function f
+              :code (:code f)
+              :pc 0
+              :env (:env f)})))))
+
+(deftest ARGS-01
+  (testing "ARGS"
+    (is (= (vm/-step (vm/->ARGS 0 'foo nil)
+                     {:n-args 0 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 0 :stack '(1 2 3 4) :env (vm/->Env [[5 6] []])}))
+    (is (= (vm/-step (vm/->ARGS 1 'foo nil)
+                     {:n-args 1 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 1 :stack '(2 3 4) :env (vm/->Env [[5 6] [1]])}))
+    (is (= (vm/-step (vm/->ARGS 2 'foo nil)
+                     {:n-args 2 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 2 :stack '(3 4) :env (vm/->Env [[5 6] [1 2]])}))
+    (is (= (vm/-step (vm/->ARGS 4 'foo nil)
+                     {:n-args 4 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 4 :stack () :env (vm/->Env [[5 6] [1 2 3 4]])}))))
+
+(deftest ARGS-02
+  (testing "ARGS: failure"
+    (let [state {:n-args 2 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])}]
+      (is (= (vm/-step (vm/->ARGS 0 'foo nil) state)
+             (assoc state
+               :stopped? true
+               :reason "Function foo called with 2 argument(s), but wants exactly 0.")))
+      (is (= (vm/-step (vm/->ARGS 1 'foo nil) state)
+             (assoc state
+               :stopped? true
+               :reason "Function foo called with 2 argument(s), but wants exactly 1.")))
+      (is (= (vm/-step (vm/->ARGS 3 'foo nil) state)
+             (assoc state
+               :stopped? true
+               :reason "Function foo called with 2 argument(s), but wants exactly 3."))))))
+
+(deftest ARGS*-01
+  (testing "ARGS*"
+    (is (= (vm/-step (vm/->ARGS* 0 'foo nil)
+                     {:n-args 0 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 0 :stack '(1 2 3 4) :env (vm/->Env [[5 6] [[]]])}))
+    (is (= (vm/-step (vm/->ARGS* 0 'foo nil)
+                     {:n-args 1 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 1 :stack '(2 3 4) :env (vm/->Env [[5 6] [[1]]])}))
+    (is (= (vm/-step (vm/->ARGS* 0 'foo nil)
+                     {:n-args 2 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 2 :stack '(3 4) :env (vm/->Env [[5 6] [[1 2]]])}))
+    (is (= (vm/-step (vm/->ARGS* 0 'foo nil)
+                     {:n-args 4 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 4 :stack '() :env (vm/->Env [[5 6] [[1 2 3 4]]])}))
+    (is (= (vm/-step (vm/->ARGS* 1 'foo nil)
+                     {:n-args 1 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 1 :stack '(2 3 4) :env (vm/->Env [[5 6] [1 []]])}))
+    (is (= (vm/-step (vm/->ARGS* 1 'foo nil)
+                     {:n-args 2 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 2 :stack '(3 4) :env (vm/->Env [[5 6] [1 [2]]])})) 
+    (is (= (vm/-step (vm/->ARGS* 1 'foo nil)
+                     {:n-args 3 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 3 :stack '(4) :env (vm/->Env [[5 6] [1 [2 3]]])})) 
+    (is (= (vm/-step (vm/->ARGS* 2 'foo nil)
+                     {:n-args 2 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 2 :stack '(3 4) :env (vm/->Env [[5 6] [1 2 []]])}))
+    (is (= (vm/-step (vm/->ARGS* 4 'foo nil)
+                     {:n-args 4 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])})
+           {:n-args 4 :stack () :env (vm/->Env [[5 6] [1 2 3 4 []]])}))))
+
+(deftest ARGS*-02
+  (testing "ARGS*: failure"
+    (let [state {:n-args 2 :stack '(1 2 3 4) :env (vm/->Env [[5 6]])}]
+      (is (= (vm/-step (vm/->ARGS* 3 'foo nil) state)
+             (assoc state
+               :stopped? true
+               :reason "Function foo called with 2 argument(s), but wants at least 3."))))))
+
+(deftest FN-01
+  (testing "FN"
+    (let [f (vm/make-fn :code (list (vm/->ARGS 1 nil nil)
+                                    (vm/->RETURN nil))
+                        :env (vm/->Env [[1 2 3]])
+                        :name 'foo
+                        :args '(x))
+          env  (vm/->Env [[5 6]])]
+      (is (= (vm/-step (vm/->FN f nil) {:stack '(1 2) :env env})
+             {:stack (list (assoc f :env env) 1 2)
+              :env env})))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
