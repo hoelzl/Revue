@@ -196,9 +196,17 @@
 ;;; ======================
 
 (defn make-global-env
-  "Create a hash table that serves as the global environment."
-  []
-  {})
+  "Create a hash table and store that represent `table` in VM data
+  format."
+  [& [table]]
+  (loop [ks (keys table)
+         vs (vals table)
+         result {}
+         store []]
+    (if ks
+      (let [[v new-store] (mem/->vm (first vs) store)]
+        (recur (next ks) (next vs) (assoc result (first ks) v) new-store))
+      [result store])))
 
 ;;; The VM State
 ;;; ============
@@ -223,16 +231,17 @@
 (defn initial-state
   "Create a new state for a VM, initially executing function `f`"
   [f]
-  {:type :vm-state
-   :function f
-   :code (:code f)
-   :pc 0
-   :global-env (make-global-env)
-   :env ()
-   :stack ()
-   :store []
-   :n-args 0
-   :stopped? false})
+  (let [[global-env store] (make-global-env)]
+    {:type :vm-state
+     :function f
+     :code (:code f)
+     :pc 0
+     :global-env global-env
+     :env ()
+     :stack ()
+     :store store
+     :n-args 0
+     :stopped? false}))
 
 ;;; The Assembler (Well, Not Yet)
 ;;; =============================

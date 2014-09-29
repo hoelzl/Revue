@@ -145,6 +145,14 @@
       (is (= (vm/env-value vm-state {:frame 1 :slot 1}) 3))
       (is (= (vm/env-value vm-state {:frame 1 :slot 2}) 4)))))
 
+(deftest make-global-env-01
+  (testing "make-global-env"
+    (is (= (vm/make-global-env) [{} []]))
+    (is (= (vm/make-global-env {:foo ['foo '(bar)] :quux [3 2 1]})
+           [{:foo #revue.mem.VmVector{:address 2, :size 2}
+             :quux #revue.mem.VmVector{:address 4, :size 3}}
+            ['bar () 'foo #revue.mem.VmCons{:address 0} 3 2 1]]))))
+
 (deftest LVAR-step-01
   (testing "LVAR -step function."
     (let [env (vm/->Env [[2 3] [0 1]])
@@ -255,6 +263,24 @@
            {:stack '(#revue.mem.VmVector{:address 0, :size 1} 1), :store [2]}))
     (is (= (vm/-step (vm/->CONST [2 3 4] nil) {:stack '(1) :store []})
            {:stack '(#revue.mem.VmVector{:address 0, :size 3} 1), :store [2 3 4]}))))
+
+(deftest JUMP-01
+  (testing "JUMP"
+    (is (= (vm/-step (vm/->JUMP 10 nil) {:pc 0}) {:pc 10}))))
+
+(deftest FJUMP-01
+  (testing "FJUMP"
+    (is (= (vm/-step (vm/->FJUMP 10 nil) {:pc 0 :stack '(false)})
+           {:pc 10 :stack '()}))
+    (is (= (vm/-step (vm/->FJUMP 10 nil) {:pc 0 :stack '(true)})
+           {:pc 0 :stack '()}))))
+
+(deftest TJUMP-01
+  (testing "TJUMP"
+    (is (= (vm/-step (vm/->TJUMP 10 nil) {:pc 0 :stack '(false)})
+           {:pc 0 :stack '()}))
+    (is (= (vm/-step (vm/->TJUMP 10 nil) {:pc 0 :stack '(true)})
+           {:pc 10 :stack '()}))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
