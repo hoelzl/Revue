@@ -1,7 +1,7 @@
 (ns revue.interpreter
   "A continuation- and state-passing interpreter using the memory
   subsystem."
-  (:require [revue.util :as util]
+  (:require [revue.util :as util :refer [pprint #+cljs nthrest]]
             [revue.mem :as mem]))
 
 ;;; This namespace contains an experimental interpreter that uses the
@@ -37,26 +37,6 @@
   "Notify programmer about a problem encountered by the interpreter."
   [msg]
   (util/note "Interpreter note:" msg))
-
-#+cljs
-(defn nthrest
-  "Take the `n`th rest of `coll`.  Missing from ClojureScript because
-  of an oversight.  Can be removed once this is fixed in
-  ClojureScript."
-  [coll n]
-  (if (zero? n)
-    coll
-    (recur (rest coll) (dec n))))
-
-(defn pprint
-  "The `clojure.pprint` namespace is not yet ported to ClojureScript.
-  Define a workaround while this is the case, use `clojure.pprint`
-  once the implementation is done."
-  [obj]
-  #+clj
-  (clojure.pprint/pprint obj)
-  #+cljs
-  (println obj))
 
 ;;; Environments for the interpreter
 ;;; ================================

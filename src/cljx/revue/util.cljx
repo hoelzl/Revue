@@ -7,6 +7,30 @@
             ;; Maybe use clojure.core/read-string for Clojure?
             #+clj [clojure.edn :as reader]))
 
+
+;;; Fixes and Missing Libraries
+;;; ===========================
+
+#+cljs
+(defn nthrest
+  "Take the `n`th rest of `coll`.  Missing from ClojureScript because
+  of an oversight.  Can be removed once this is fixed in
+  ClojureScript."
+  [coll n]
+  (if (zero? n)
+    coll
+    (recur (rest coll) (dec n))))
+
+(defn pprint
+  "The `clojure.pprint` namespace is not yet ported to ClojureScript.
+  Define a workaround while this is the case, use `clojure.pprint`
+  once the implementation is done."
+  [obj]
+  #+clj
+  (clojure.pprint/pprint obj)
+  #+cljs
+  (println obj))
+
 ;;; Warnings and Errors
 ;;; ====================
 

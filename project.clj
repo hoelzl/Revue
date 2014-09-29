@@ -54,7 +54,7 @@
                                    :pretty-print false
                                    :libs [""]}}}}
 
-  :profiles {:dev {:plugins [[com.cemerick/austin "0.2.0-SNAPSHOT"]
+  :profiles {:dev {:plugins [[com.cemerick/austin "0.1.5"]
                              [com.cemerick/clojurescript.test "0.3.1"
                               :exclusions [com.google.guava/guava]]
                              [org.clojars.cemerick/cljx "0.5.0-SNAPSHOT"]
