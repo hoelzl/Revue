@@ -1,6 +1,6 @@
 (ns revue.vm
   "The virtual machine for the Revue system."
-  (:require [revue.util :as util]
+  (:require [revue.util :as util :refer [pprint #+cljs nthrest]]
             [revue.mem :as mem]))
 
 
@@ -198,7 +198,7 @@
    :pc pc
    :env env})
 
-(defn make-fn [code & {:keys [env name args]}]
+(defn make-fn [{:keys [code env name args]}]
   {:type :bytecode-function
    :code code
    :env env
@@ -214,7 +214,19 @@
    :global-env (make-global-env)
    :env ()
    :stack ()
-   :n-args 0})
+   :n-args 0
+   :stopped? false})
+
+;;; The Assembler (Well, Not Yet)
+;;; =============================
+
+;;; We need to have the VM instructions available for the assembler,
+;;; thus we define the `assemble` function after the VM instructions.
+;;; However, for some instructions it is convenient to have `assemble`
+;;; available (e.g., for `CC`), so we provide a forward declaration
+;;; here.
+
+(declare assemble)
 
 ;;; VM Instructions
 ;;; ===============
@@ -354,81 +366,116 @@
   (-opcode [this]
     'CALLJ))
 
-(defrecord ARGS [source]
+(defn move-args-from-stack-to-env [n-args vm-state & n-rest-args]
+  (let [stack (:stack vm-state)
+        tmp-frame (vec (take n-args stack))
+        tmp-stack (drop n-args stack)
+        [new-frame new-stack] (if-not n-rest-args
+                                [tmp-frame (vec tmp-stack)]
+                                [(conj tmp-frame (vec (take n-rest-args tmp-stack)))
+                                 (vec (drop n-rest-args tmp-stack))])]
+    (assoc vm-state
+      :env (conj (:env vm-state) new-frame)
+      :stack new-stack)))
+
+(defrecord ARGS [n-args name source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (let [n-args (:n-args this)]
+      (if-not (= n-args (:n-args vm-state))
+        (assoc vm-state
+          :stopped? true
+          :reason (str "Function " (:name this) " called with " (:n-args vm-state)
+                       " arguments, but wants exactly " n-args "."))
+        (move-args-from-stack-to-env n-args vm-state))))
   (-opcode [this]
     'ARGS))
 
-(defrecord ARGS* [source]
+(defrecord ARGS* [n-args name source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (let [n-args (:n-args this)
+          supplied-args (:n-args vm-state)]
+      (if-not (<= n-args supplied-args)
+        (assoc vm-state
+          :stopped? true
+          :reason (str "Function " (:name this) " called with " supplied-args
+                       " arguments, but wants at least " n-args))
+        (move-args-from-stack-to-env n-args vm-state (- supplied-args n-args)))))
   (-opcode [this]
     'ARGS*))
 
-(defrecord FN [source]
+(defrecord FN [function source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (update-in vm-state [:stack] conj
+               (assoc function :env (:env vm-state))))
   (-opcode [this]
     'FN))
 
-(defrecord PRIM [source]
+(defrecord PRIM [clj-code source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (let [n-args (:n-args vm-state)
+          stack (:stack vm-state)
+          raw-args (take n-args stack)
+          new-stack (drop n-args stack)]
+      (assoc vm-state
+        :stack (conj new-stack (apply (:clj-code this) raw-args)))))
   (-opcode [this]
     'PRIM))
 
 (defrecord SET-CC [source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (update-in vm-state [:stack] peek))
   (-opcode [this]
     'SET-CC))
 
 (defrecord CC [source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (assoc vm-state :stack
+           (make-fn :code (assemble '((args 1)
+                                      (lvar 1 0 stack)
+                                      (set-cc)
+                                      (lvar 0 0 fun)
+                                      (return)))
+                    :env (->Env [(:stack vm-state)])
+                    :name '%cc
+                    :args '[fun])))
   (-opcode [this]
     'CC))
 
 (defrecord HALT [source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (assoc vm-state
+      :stopped? true
+      :reason "Program terminated."))
   (-opcode [this]
     'HALT))
 
-(defrecord OP0 [source]
+(defrecord OP [n clj-code source]
   VmInst
-  (-step [this vm-state])
+  (-step [this vm-state]
+    (let [stack (:stack vm-state)
+          args (mem/->clojure (vec (take n stack)))
+          new-stack (vec (drop n stack))]
+      (assoc vm-state
+        :stack (conj new-stack (apply (:clj-code this) args)))))
   (-opcode [this]
-    'OP0))
+    'OP))
 
-(defrecord OP1 [source]
-  VmInst
-  (-step [this vm-state])
-  (-opcode [this]
-    'OP1))
-
-(defrecord OP2 [source]
-  VmInst
-  (-step [this vm-state])
-  (-opcode [this]
-    OP2))
-
-(defrecord OP3 [source]
-  VmInst
-  (-step [this vm-state])
-  (-opcode [this]
-    'OP3))
-
-(defrecord OPN  [source]
-  VmInst
-  (-step [this vm-state])
-  (-opcode [this]
-    'OPN))
 
 (defn step [vm-state]
-  (let [instr (nth (:code vm-state) (:pc vm-state))]
-    (-step instr (update-in vm-state :pc inc))))
+  "Run a single step of the VM starting in `vm-state`.  If the VM is
+  stopped, i.e., `(:stopped? vm-state)` is true, then return the state
+  unchanged."
+  (if (:stopped? vm-state)
+    vm-state
+    (let [instr (nth (:code vm-state) (:pc vm-state))]
+      (-step instr (update-in vm-state :pc inc)))))
 
 ;;; The VM Proper
 ;;; =============

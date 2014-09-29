@@ -74,47 +74,38 @@
     (is (= (rest (vm/->Env [1])) []))
     (is (= (list? (rest (vm/->Env [1])))))
     (is (= (rest (vm/->Env [1 2])) [1]))
-    #+clj
-    (is (= (class (rest (vm/->Env [1 2]))) revue.vm.Env))
+    (is (= (type (rest (vm/->Env [1 2]))) revue.vm.Env))
     (is (= (rest (vm/->Env [1 2 3])) [2 1]))
-    #+clj
-    (is (= (class (rest (vm/->Env [1 2 3]))) revue.vm.Env))))
+    (is (= (type (rest (vm/->Env [1 2 3]))) revue.vm.Env))))
 
 (deftest Env-07
   (testing "Env: next"
     (is (= (next (vm/->Env [])) nil))
     (is (= (next (vm/->Env [1])) nil))
     (is (= (next (vm/->Env [1 2])) [1]))
-    #+clj
-    (is (= (class (next (vm/->Env [1 2]))) revue.vm.Env))
+    (is (= (type (next (vm/->Env [1 2]))) revue.vm.Env))
     (is (= (next (vm/->Env [1 2 3])) [2 1]))
-    #+clj
-    (is (= (class (next (vm/->Env [1 2 3]))) revue.vm.Env))))
+    (is (= (type (next (vm/->Env [1 2 3]))) revue.vm.Env))))
 
 (deftest Env-08
   (testing "Env: peek, pop"
     (let [env (vm/->Env [[4 5 6] [1 2 3]])]
       (is (= (peek (vm/->Env [])) nil))
       (is (= (pop (vm/->Env [])) []))
-      #+clj
-      (is (= (class (pop (vm/->Env []))) revue.vm.Env))
+      (is (= (type (pop (vm/->Env []))) revue.vm.Env))
       (is (= (peek env) [1 2 3]))
       (is (= (pop env) [[4 5 6]]))
-      #+clj
-      (is (= (class (pop env)) revue.vm.Env)))))
+      (is (= (type (pop env)) revue.vm.Env)))))
 
 (deftest Env-09
   (testing "Env: assoc, get"
     (let [env (vm/->Env [1 2 3])]
       (is (= (assoc env 0 6) [6 2 1]))
-      #+clj
-      (is (= (class (assoc env 0 6)) revue.vm.Env))
+      (is (= (type (assoc env 0 6)) revue.vm.Env))
       (is (= (assoc env 1 6) [3 6 1]))
-      #+clj
-      (is (= (class (assoc env 1 6)) revue.vm.Env))
+      (is (= (type (assoc env 1 6)) revue.vm.Env))
       (is (= (assoc env 2 6) [3 2 6]))
-      #+clj
-      (is (= (class (assoc env 2 6)) revue.vm.Env))
+      (is (= (type (assoc env 2 6)) revue.vm.Env))
       (is (= (get env 0) 3))
       (is (= (get env 1) 2))
       (is (= (get env 2) 1)))))
