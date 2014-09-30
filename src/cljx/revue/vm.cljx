@@ -661,6 +661,7 @@
   "Assemble a sequence of instructions from Clojure lists into
   `VmInst` data structures."
   [instructions]
+  ;; TODO: Need to resolve labels for jumps
   (map assemble-inst instructions))
 
 ;;; The VM Proper
