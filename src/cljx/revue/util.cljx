@@ -204,7 +204,7 @@
 (deftype Env [frames]
   ILocalEnv
   (frames [this]
-    (reverse frames))
+    (vec (reverse frames)))
   clojure.lang.Counted
   (count [this]
     (count frames))
@@ -273,7 +273,7 @@
 (deftype Env [frames]
   ILocalEnv
   (frames [_]
-    frames)
+    (vec (reverse frames)))
   Object
   (entry-at [this key]
     (nth this key))
@@ -369,8 +369,7 @@
         result
         (recur (rest frames) (inc n-frame))))))
 
-;;; This implementation works in Clojure but returns wrong values in
-;;; ClojureScript.  Investigate why.
+;;; Alternative implementation of `in-env?`.
 #_
 (defn in-env? [env var]
   (first
