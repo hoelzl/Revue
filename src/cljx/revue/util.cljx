@@ -116,14 +116,14 @@
 ;;; by the VM.
 
 (defn boolean?
-  "Returns true if `x` is either `true` or `false`, false otherwise.
+  "Return true if `x` is either `true` or `false`, false otherwise.
   This is needed for choosing the correct representation in the memory
   subsystem."
   [x]
   (or (= x true) (= x false)))
 
 (defn atomic?
-  "Returns true if `d` can be represented without comsuming storage on
+  "Return true if `d` can be represented without comsuming storage on
   the heap."
   [d]
   (cond
@@ -134,6 +134,12 @@
    (string? d) true
    (identical? d ()) true
    :else false))
+
+(defn constant?
+  "Return true if `d` is a compile-time constant, i.e., an expression
+  that can be evaluated by the compiler and constant folded."
+  [d]
+  (and (atomic? d) (not (symbol? d))))
 
 ;;; Utilities for reading the program source
 ;;; ========================================
@@ -349,6 +355,23 @@
         frame-vector (nth env frame)]
     (nth frame-vector slot)))
 
+(defn in-env? [env var]
+  (loop [frames (frames env) n-frame 0]
+    (if (empty? frames)
+      false
+      (if-let [result (loop [vals (first frames) pos 0]
+                        (cond (empty? vals)
+                              false
+                              (= var (first vals))
+                              [n-frame pos]
+                              :else
+                              (recur (rest vals) (inc pos))))]
+        result
+        (recur (rest frames) (inc n-frame))))))
+
+;;; This implementation works in Clojure but returns wrong values in
+;;; ClojureScript.  Investigate why.
+#_
 (defn in-env? [env var]
   (first
    (keep-indexed (fn [n-frame frame]

@@ -83,15 +83,19 @@
 ;;; VM Instructions
 ;;; ===============
 
+(defn primitive? [form env n-args]
+  ;;; TODO: Implement this!
+  nil)
+
 (defn make-prim
   "Create a new primitive instruction."
-  [symbol n-args opcode always? side-effect?]
+  [symbol n-args opcode always? side-effects?]
   {:type :primitive-instruction
    :symbol symbol
    :n-args n-args
    :opcode opcode
    :always? always?
-   :side-effect? side-effect?})
+   :side-effects? side-effects?})
 
 (defprotocol VmInst
   "Each instruction of the VM is represented as a datatype that

@@ -231,7 +231,7 @@
       (is (= (util/in-env? env :e) [1 1]))
       (is (= (util/in-env? env :f) [1 2]))
       (is (= (util/in-env? env :g) [1 3]))
-      (is (= (util/in-env? env :h) nil)))))
+      (is (not (util/in-env? env :h))))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
