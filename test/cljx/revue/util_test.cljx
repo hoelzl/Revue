@@ -95,6 +95,144 @@
           (is (= (util/read-program-from-string string) [d])))))))
 
 
+(deftest Env-01
+  (testing "Env: frames, count"
+    (is (= (util/frames (util/->Env [])) []))
+    (is (= (util/frames (util/->Env [1])) [1]))
+    (is (= (count (util/->Env [])) 0))
+    (is (= (count (util/->Env [1])) 1))
+    (is (= (count (util/->Env [1 2 3 4])) 4))))
+
+(deftest Env-02
+  (testing "Env: nth"
+        (is (= (nth (util/->Env [1]) 0) 1))
+    ;; Note that the nth indexes from the end of the array
+    (is (= (nth (util/->Env [1 2 3 4]) 0) 4))
+    (is (= (nth (util/->Env [1 2 3 4]) 1) 3))
+    (is (= (nth (util/->Env [1 2 3 4]) 2) 2))
+    (is (= (nth (util/->Env [1 2 3 4]) 3) 1))
+    (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
+                 (nth (util/->Env [1 2 3 4]) 4)))
+    (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
+                 (nth (util/->Env [1 2 3 4]) -1)))))
+
+(deftest Env-03
+  (testing "Env: ="
+    (is (= (seq (util/->Env [])) nil))
+    (let [env (util/->Env [1])]
+      (is (= (seq env) env)))
+    (is (= (util/->Env []) (util/->Env [])))
+    (is (= (util/->Env [1]) (util/->Env [1])))
+    (is (not (= (util/->Env []) (util/->Env [1]))))))
+
+(deftest Env-04
+  (testing "Env: =, conj"
+    (is (not (= (util/->Env [1]) (util/->Env []))))
+    (is (= (util/->Env [1 2 3 4]) (util/->Env [1 2 3 4])))
+    (is (not (= (util/->Env [1 2 3]) (util/->Env [1 2 3 4]))))
+    (is (not (= (util/->Env [1 2 3 4]) (util/->Env [1 2 3]))))
+    (is (= (util/->Env [1 2 3 4]) [4 3 2 1]))
+    (is (not (= (util/->Env [1 2 3 4]) [1 2 3 4])))
+    (is (= (conj (util/->Env []) 1) (conj (util/->Env [1]))))))
+
+(deftest Env-05
+  (testing "Env: empty?, first"
+    (is (empty? (util/->Env [])))
+    (is (not (empty? (util/->Env [1]))))
+    (is (= (first (util/->Env [])) nil))
+    (is (= (first (util/->Env [1])) 1))
+    (is (= (first (util/->Env [1 2])) 2))
+    (is (= (first (util/->Env [1 2 3])) 3))))
+
+(deftest Env-06
+  (testing "Env: rest"
+    (is (= (rest (util/->Env [])) ()))
+    (is (= (rest (util/->Env [1])) []))
+    (is (= (list? (rest (util/->Env [1])))))
+    (is (= (rest (util/->Env [1 2])) [1]))
+    (is (= (type (rest (util/->Env [1 2]))) revue.util.Env))
+    (is (= (rest (util/->Env [1 2 3])) [2 1]))
+    (is (= (type (rest (util/->Env [1 2 3]))) revue.util.Env))))
+
+(deftest Env-07
+  (testing "Env: next"
+    (is (= (next (util/->Env [])) nil))
+    (is (= (next (util/->Env [1])) nil))
+    (is (= (next (util/->Env [1 2])) [1]))
+    (is (= (type (next (util/->Env [1 2]))) revue.util.Env))
+    (is (= (next (util/->Env [1 2 3])) [2 1]))
+    (is (= (type (next (util/->Env [1 2 3]))) revue.util.Env))))
+
+(deftest Env-08
+  (testing "Env: peek, pop"
+    (let [env (util/->Env [[4 5 6] [1 2 3]])]
+      (is (= (peek (util/->Env [])) nil))
+      (is (= (pop (util/->Env [])) []))
+      (is (= (type (pop (util/->Env []))) revue.util.Env))
+      (is (= (peek env) [1 2 3]))
+      (is (= (pop env) [[4 5 6]]))
+      (is (= (type (pop env)) revue.util.Env)))))
+
+(deftest Env-09
+  (testing "Env: assoc, get"
+    (let [env (util/->Env [1 2 3])]
+      (is (= (assoc env 0 6) [6 2 1]))
+      (is (= (type (assoc env 0 6)) revue.util.Env))
+      (is (= (assoc env 1 6) [3 6 1]))
+      (is (= (type (assoc env 1 6)) revue.util.Env))
+      (is (= (assoc env 2 6) [3 2 6]))
+      (is (= (type (assoc env 2 6)) revue.util.Env))
+      (is (= (get env 0) 3))
+      (is (= (get env 1) 2))
+      (is (= (get env 2) 1)))))
+
+(deftest Env-10
+  (testing "Env: get-in"
+    (let [env (util/->Env [[6 7 8 9] [4 5] [1 2 3]])]
+      (is (= (get-in env [0 0]) 1))
+      (is (= (get-in env [0 1]) 2))
+      (is (= (get-in env [0 2]) 3))
+      (is (= (get-in env [1 0]) 4))
+      (is (= (get-in env [1 1]) 5))
+      (is (= (get-in env [2 0]) 6))
+      (is (= (get-in env [2 1]) 7))
+      (is (= (get-in env [2 2]) 8))
+      (is (= (get-in env [2 3]) 9)))))
+
+(deftest Env-11
+  (testing "Env: assoc-in"
+    (let [env (util/->Env [[6 7 8 9] [4 5] [1 2 3]])]
+      (is (= (assoc-in env [0 0] 10) [[10 2 3] [4 5] [6 7 8 9]]))
+      (is (= (assoc-in env [0 1] 10) [[1 10 3] [4 5] [6 7 8 9]]))
+      (is (= (assoc-in env [0 2] 10) [[1 2 10] [4 5] [6 7 8 9]]))
+      (is (= (assoc-in env [1 0] 10) [[1 2 3] [10 5] [6 7 8 9]]))
+      (is (= (assoc-in env [1 1] 10) [[1 2 3] [4 10] [6 7 8 9]]))
+      (is (= (assoc-in env [2 0] 10) [[1 2 3] [4 5] [10 7 8 9]]))
+      (is (= (assoc-in env [2 1] 10) [[1 2 3] [4 5] [6 10 8 9]]))
+      (is (= (assoc-in env [2 2] 10) [[1 2 3] [4 5] [6 7 10 9]]))
+      (is (= (assoc-in env [2 3] 10) [[1 2 3] [4 5] [6 7 8 10]])))))
+
+(deftest env-value-01
+  (testing "env-value"
+    (let [vm-state {:env (util/->Env [[2 3 4] [0 1]])}]
+      (is (= (util/env-value vm-state {:frame 0 :slot 0}) 0))
+      (is (= (util/env-value vm-state {:frame 0 :slot 1}) 1))
+      (is (= (util/env-value vm-state {:frame 1 :slot 0}) 2))
+      (is (= (util/env-value vm-state {:frame 1 :slot 1}) 3))
+      (is (= (util/env-value vm-state {:frame 1 :slot 2}) 4)))))
+
+(deftest in-env?-01
+  (testing "in-env?"
+    (let [env (util/->Env [[:d :e :f :g] [:a :b :c]])]
+      (is (= (util/in-env? env :a) [0 0]))
+      (is (= (util/in-env? env :b) [0 1]))
+      (is (= (util/in-env? env :c) [0 2]))
+      (is (= (util/in-env? env :d) [1 0]))
+      (is (= (util/in-env? env :e) [1 1]))
+      (is (= (util/in-env? env :f) [1 2]))
+      (is (= (util/in-env? env :g) [1 3]))
+      (is (= (util/in-env? env :h) nil)))))
+
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
 ;;; (t/run-tests 'revue.util-test)

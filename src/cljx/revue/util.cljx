@@ -169,6 +169,198 @@
     (catch js/Error e
       [::syntax-error])))
 
+;;; Local Environment for Compiler and VM
+;;; =====================================
+
+
+;;; Local environments are implemented as a sequence of frames.  We
+;;; have to be able to retreive values by giving an index of the form
+;;; `[frame slot]`, and we need to be able to push new frames at index
+;;; 0.  This means that none of the existing Clojure data structures
+;;; is a good fit: Lists don't allow direct indexing and arrays
+;;; conjoin new members at the end of the array.  We therefore define
+;;; a new data structure `Env` that is essentially a wrapper around an
+;;; array that reverses the indices, i.e., the last element of the
+;;; array `frames` is accessed with index 0, the first element with
+;;; index `(dec (count frames))`.  Unfortunately this is not as simple
+;;; as it should be, and to make things worse, we have to implement
+;;; two slightly different versions for Clojure and ClojureScript
+;;; since the protocol names and methods don't match.
+
+(defprotocol ILocalEnv
+  "The protocol for local environments: Return a sequence of
+  environment frames."
+  (frames [this]))
+
+(declare ->Env)
+
+#+clj
+(deftype Env [frames]
+  ILocalEnv
+  (frames [this]
+    (reverse frames))
+  clojure.lang.Counted
+  (count [this]
+    (count frames))
+  clojure.lang.Indexed
+  (nth [this n]
+    (nth this n nil))
+  (nth [this n default]
+    (nth frames (- (count frames) n 1)))
+  clojure.lang.Sequential
+  clojure.lang.Seqable
+  (seq [this]
+    (if (empty? frames)
+      nil
+      this))
+  clojure.lang.IPersistentCollection
+  ;; Obviously `cons` does not implement `cons` but `conj`, see
+  ;; `src/jvm/clojure/lang/RT.java` in the Clojure implementation.
+  (cons [this obj]
+    (->Env (conj frames obj)))
+  (empty [this]
+    (println "Called empty")
+    (empty? frames))
+  (equiv [this obj]
+    (if (sequential? obj)
+      (loop [lhs (seq this)
+             rhs (seq obj)]
+        (if lhs
+          (and (not (not rhs))
+               (= (first lhs) (first rhs))
+               (recur (next lhs) (next rhs)))
+          (not rhs)))
+      false))
+  clojure.lang.ISeq
+  (first [this]
+    (if (empty? frames)
+      nil
+      (nth frames (- (count frames) 1))))
+  (next [this]
+    (if (<= (count frames) 1)
+      nil
+      (->Env (pop frames))))
+  (more [this]
+    (or (next this) ()))
+  clojure.lang.IPersistentStack
+  (peek [this]
+    (first this))
+  (pop [this]
+    (or (next this)
+        (->Env [])))
+  clojure.lang.Associative
+  (containsKey [this key]
+    (and (integer? key)
+         (<= 0 key)
+         (< key (count frames))))
+  (entryAt [this key]
+    (nth this key))
+  (assoc [this key val]
+    (->Env (assoc frames (- (count frames) key 1) val)))
+  clojure.lang.ILookup
+  (valAt [this key]
+    (get this key nil))
+  (valAt [this key not-found]
+    (get frames (- (count frames) key 1) not-found)))
+
+#+cljs
+(deftype Env [frames]
+  ILocalEnv
+  (frames [_]
+    frames)
+  Object
+  (entry-at [this key]
+    (nth this key))
+  cljs.core/ICounted
+  (-count [_]
+    (count frames))
+  cljs.core/IIndexed
+  (-nth [this n]
+    (nth this n nil))
+  (-nth [this n default]
+    (nth frames (- (count frames) n 1)))
+  cljs.core/ISequential
+  cljs.core/ISeqable
+  (-seq [this]
+    (if (empty? frames)
+      nil
+      this))
+  cljs.core/ICollection
+  (-conj [_ obj]
+    (->Env (conj frames obj)))
+  cljs.core/IEmptyableCollection
+  (-empty [_]
+    (empty? frames))
+  cljs.core/IEquiv
+  (-equiv [this obj]
+    (if (sequential? obj)
+      (loop [lhs (seq this)
+             rhs (seq obj)]
+        (if lhs
+          (and (not (not rhs))
+               (= (first lhs) (first rhs))
+               (recur (next lhs) (next rhs)))
+          (not rhs)))
+      false))
+  cljs.core/ISeq
+  (-first [this]
+    (if (empty? frames)
+      nil
+      (nth frames (- (count frames) 1))))
+  (-rest [this]
+    (if (<= (count frames) 1)
+      ()
+      (->Env (pop frames))))
+  cljs.core/INext
+  (-next [this]
+    (if (<= (count frames) 1)
+      nil
+      (->Env (pop frames))))
+  cljs.core/IStack
+  (-peek [this]
+    (first this))
+  (-pop [this]
+    (or (next this)
+        (->Env [])))
+  cljs.core/IAssociative
+  (-contains-key? [this key]
+    (and (integer? key)
+         (<= 0 key)
+         (< key (count frames))))
+  (-assoc [this key val]
+    (->Env (assoc frames (- (count frames) key 1) val)))
+  cljs.core/ILookup
+  (-lookup [this key]
+    (get this key nil))
+  (-lookup [this key not-found]
+    (get frames (- (count frames) key 1) not-found)))
+
+#+clj
+(defmethod print-method Env [env writer]
+  (.write writer (str "#" (print-str (class env)) "{:frames " (frames env) "}")))
+
+(defn env-value
+  "Return the value at position `[frame slot]` in `vm-state`'s
+  environment.  This is similar to `(get-in env [frame slot])` but
+  throws if the index is out of bounds (which can only result from a
+  compiler error)."
+  [vm-state {:keys [frame slot]}]
+  (let [env (:env vm-state)
+        frame-vector (nth env frame)]
+    (nth frame-vector slot)))
+
+(defn in-env? [env var]
+  (first
+   (keep-indexed (fn [n-frame frame]
+                   (if-let [pos-in-frame
+                            (first (keep-indexed (fn [index val]
+                                                   (if (= var val) index nil))
+                                                 (seq frame)))]
+                     [n-frame pos-in-frame]
+                     nil))
+                 (frames env))))
+
+
 ;;; <!--
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

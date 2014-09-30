@@ -42,9 +42,6 @@
 (defmethod compile ::boolean [form env val? more?]
   (gen 'CONST form))
 
-(defn in-env? [var env]
-  (let [frames (vm/frames env)]))
-
 (defn gen-var [var env])
 
 (defmethod compile ::symbol [var env val? more?]
