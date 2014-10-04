@@ -158,11 +158,11 @@
             #+clj (-> (java.io.StringReader. string)
                       clojure.lang.LineNumberingPushbackReader.)
             #+cljs (reader/push-back-reader string)]
-           (loop [form (reader/read stream false stream)
+           (loop [form (reader/read stream false stream false)
                   forms []]
              (if (identical? form stream)
                forms
-               (recur (reader/read stream false stream)
+               (recur (reader/read stream false stream false)
                       (conj forms form)))))
     (catch #+clj java.lang.Exception #+cljs js/Error e
            [::syntax-error])))
