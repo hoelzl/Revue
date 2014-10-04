@@ -8,28 +8,26 @@ echo "Starting Leiningen.  This may take a moment."
 lein do cljx once, marg -d doc -f revue.html -D \
 "# Reversible User Experiences
 
-*REVUE* is an interpreter/virtual machine that returns a trace of a
-program\'s execution.  This trace can be used for visualizing the inner
-workings of a program, animating algorithms, etc.
+*REVUE* is a compiler/virtual machine combination that returns a trace
+of a program's execution.  This trace can be used for visualizing the
+inner workings of a program, animating algorithms, etc.
 
-More precisely, \`step\`, the central function of *REVUE* interprets a
-Scheme-like intermediate language by taking a program state consisting
-of
+More precisely, *REVUE* contains a compiler for a simple Lisp dialect
+called *Riley* (Revue Intermediate Language, ey), that generates
+byte-code for a simple stack-based VM and an implementation of the VM
+in purely functional form, i.e., the VM is implemented as a function
+\`step\` that takes a state as input and generates a new state as
+output The state transformation is implemented using efficient
+persistent data structures, so that it is feasible to retain the
+execution trace of the program.  Eventually compilers for other input
+languages will be provided.
 
-* a form to be evaluated,
-* an environment
-* a store
-* a continuation
-* the value of the previous step
-
-and returning a new state of the same form.  To evaluate the program,
-we can then simply iterate the \`step\` function to obtain an infinite
-sequence of states.  (Calling \`step\` with the final state of a
-terminating computation simply returns the same state again.)  For
-visualizing terminating algorithms, a convenience function \`interp\` is
-provided that runs the VM to completion and returns the resulting
-seqence of states."\
+To evaluate the program, we then simply iterate the \`step\` function
+to obtain an infinite sequence of states.  (Calling \`step\` with the
+final state of a terminating computation simply returns the same state
+again.)"\
      target/classes/revue/util.cljs\
      target/classes/revue/mem.cljs\
-     target/classes/revue/interpreter.cljs
+     target/classes/revue/vm.cljs\
+     target/classes/revue/riley.cljs
 

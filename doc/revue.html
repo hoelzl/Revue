@@ -1,27 +1,24 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8" content="text/html" http-equiv="Content-Type" /><meta content="# Reversible User Experiences
 
-*REVUE* is an interpreter/virtual machine that returns a trace of a
-program\'s execution.  This trace can be used for visualizing the inner
-workings of a program, animating algorithms, etc.
+*REVUE* is a compiler/virtual machine combination that returns a trace
+of a program's execution.  This trace can be used for visualizing the
+inner workings of a program, animating algorithms, etc.
 
-More precisely, `step`, the central function of *REVUE* interprets a
-Scheme-like intermediate language by taking a program state consisting
-of
+More precisely, *REVUE* contains a compiler for a simple Lisp dialect
+called *Riley* (Revue Intermediate Language, ey), that generates
+byte-code for a simple stack-based VM and an implementation of the VM
+in purely functional form, i.e., the VM is implemented as a function
+`step` that takes a state as input and generates a new state as
+output The state transformation is implemented using efficient
+persistent data structures, so that it is feasible to retain the
+execution trace of the program.  Eventually compilers for other input
+languages will be provided.
 
-* a form to be evaluated,
-* an environment
-* a store
-* a continuation
-* the value of the previous step
-
-and returning a new state of the same form.  To evaluate the program,
-we can then simply iterate the `step` function to obtain an infinite
-sequence of states.  (Calling `step` with the final state of a
-terminating computation simply returns the same state again.)  For
-visualizing terminating algorithms, a convenience function `interp` is
-provided that runs the VM to completion and returns the resulting
-seqence of states." name="description" /><style type="text/css">/**
+To evaluate the program, we then simply iterate the `step` function
+to obtain an infinite sequence of states.  (Calling `step` with the
+final state of a terminating computation simply returns the same state
+again.)" name="description" /><style type="text/css">/**
  * SyntaxHighlighter
  * http://alexgorbatchev.com/SyntaxHighlighter
  *
@@ -2889,30 +2886,25 @@ net.brehaut.ClojureTools = (function (SH) {
 })(SyntaxHighlighter);
 </script><title>revue -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name"><a href="https://github.com/hoelzl/Revue">revue</a></h1><h2 class="project-version">0.0.1-SNAPSHOT</h2><br /><h1>Reversible User Experiences</h1>
 
-<p><em>REVUE</em> is an interpreter/virtual machine that returns a trace of a
-program\'s execution.  This trace can be used for visualizing the inner
-workings of a program, animating algorithms, etc.</p>
+<p><em>REVUE</em> is a compiler/virtual machine combination that returns a trace
+of a program's execution.  This trace can be used for visualizing the
+inner workings of a program, animating algorithms, etc.</p>
 
-<p>More precisely, <code>step</code>, the central function of <em>REVUE</em> interprets a
-Scheme-like intermediate language by taking a program state consisting
-of</p>
+<p>More precisely, <em>REVUE</em> contains a compiler for a simple Lisp dialect
+called <em>Riley</em> (Revue Intermediate Language, ey), that generates
+byte-code for a simple stack-based VM and an implementation of the VM
+in purely functional form, i.e., the VM is implemented as a function
+<code>step</code> that takes a state as input and generates a new state as
+output The state transformation is implemented using efficient
+persistent data structures, so that it is feasible to retain the
+execution trace of the program.  Eventually compilers for other input
+languages will be provided.</p>
 
-<ul>
-<li>a form to be evaluated,</li>
-<li>an environment</li>
-<li>a store</li>
-<li>a continuation</li>
-<li>the value of the previous step</li>
-</ul>
-
-<p>and returning a new state of the same form.  To evaluate the program,
-we can then simply iterate the <code>step</code> function to obtain an infinite
-sequence of states.  (Calling <code>step</code> with the final state of a
-terminating computation simply returns the same state again.)  For
-visualizing terminating algorithms, a convenience function <code>interp</code> is
-provided that runs the VM to completion and returns the resulting
-seqence of states.</p>
-</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.7.0-alpha2</td></tr><tr><td class="dep-name">org.clojure/clojurescript</td><td class="dotted"><hr /></td><td class="dep-version">0.0-2356</td></tr><tr><td class="dep-name">org.clojure/tools.reader</td><td class="dotted"><hr /></td><td class="dep-version">0.8.9</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#revue.util">revue.util</a></li><li><a href="#revue.mem">revue.mem</a></li><li><a href="#revue.interpreter">revue.interpreter</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#revue.util" name="revue.util"><h1 class="project-name">revue.util</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>The <code>revue.util</code> namespace contains utilities used by the rest of
+<p>To evaluate the program, we then simply iterate the <code>step</code> function
+to obtain an infinite sequence of states.  (Calling <code>step</code> with the
+final state of a terminating computation simply returns the same state
+again.)</p>
+</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.7.0-alpha2</td></tr><tr><td class="dep-name">org.clojure/clojurescript</td><td class="dotted"><hr /></td><td class="dep-version">0.0-2356</td></tr><tr><td class="dep-name">org.clojure/tools.reader</td><td class="dotted"><hr /></td><td class="dep-version">0.8.9</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#revue.util">revue.util</a></li><li><a href="#revue.mem">revue.mem</a></li><li><a href="#revue.vm">revue.vm</a></li><li><a href="#revue.riley">revue.riley</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#revue.util" name="revue.util"><h1 class="project-name">revue.util</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>The <code>revue.util</code> namespace contains utilities used by the rest of
   the system, i.e., currently the memory subsystem and the
   interpreter, and in the future by the compiler and the virtual
   machine.</p>
@@ -2936,9 +2928,6 @@ seqence of states.</p>
 for error handling, I have implemented quick and dirty versions of
 the <code>error</code> and <code>warning</code> functions.  Later we will have to
 add a better error-handling protocol.</p>
-</td><td class="codes"></td></tr><tr><td class="docs"><!--
-TODO: Replace these functions with more useful implementations
--->
 </td><td class="codes"></td></tr><tr><td class="docs"><p>The <code>error</code> function is a simple wrapper around <code>throw</code> that
   provides a suitable class for Clojure and ClojureScript.  Currently
   there is no way to provide specialized classes for different error
@@ -2971,7 +2960,8 @@ TODO: Replace these functions with more useful implementations
        (.log js/console prefix msg)
        (flush))))</pre></td></tr><tr><td class="docs"><h1>Utilities for sequences</h1>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Returns true iff <code>coll</code> contains exactly one element,
-  i.e., <code>(singleton? x)</code> is always equivalent to <code>(= (count x) 1)</code></p>
+  i.e., <code>(singleton? x)</code> is always equivalent to <code>(= (count x) 1)</code> but
+  more efficient for collections where <code>count</code> is not O(1).''</p>
 </td><td class="codes"><pre class="brush: clojure">(defn singleton?
   [coll]
   (and (not (empty? coll))
@@ -3007,19 +2997,22 @@ by the VM.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn constant?
   [d]
   (and (atomic? d) (not (symbol? d))))</pre></td></tr><tr><td class="docs"><h1>Utilities for reading the program source</h1>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>Read all forms from the input string.</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Read all forms from the input string and return them as sequence.
+  Return the sequence <code>[::syntax-error]</code> if reading fails.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn read-program-from-string
   [string]
-  (try
-    (let [stream (cljs.reader/push-back-reader string)]
-      (loop [form (cljs.reader/read stream false stream nil)
-             forms []]
-        (if (identical? form stream)
-          forms
-          (recur (cljs.reader/read stream false stream nil)
-                 (conj forms form)))))
-    (catch js/Error e
-      [::syntax-error])))</pre></td></tr><tr><td class="docs"><h1>Local Environment for Compiler and VM</h1>
+  (let [read                   cljs.reader/read]
+    (try
+      (with-open [stream
+                         (cljs.reader/push-back-reader string)]
+        (loop [form (read stream false stream)
+               forms []]
+          (if (identical? form stream)
+            forms
+            (recur (read stream false stream)
+                   (conj forms form)))))
+      (catch                                  js/Error e
+        [::syntax-error]))))</pre></td></tr><tr><td class="docs"><h1>Local Environment for Compiler and VM</h1>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Local environments are implemented as a sequence of frames.  We
 have to be able to retreive values by giving an index of the form
 <code>[frame slot]</code>, and we need to be able to push new frames at index
@@ -3041,7 +3034,7 @@ since the protocol names and methods don't match.</p>
 </td><td class="codes"><pre class="brush: clojure">(deftype Env [frames]
   ILocalEnv
   (frames [_]
-    (reverse frames))
+    (vec (reverse frames)))
   Object
   (entry-at [this key]
     (nth this key))
@@ -3117,6 +3110,7 @@ since the protocol names and methods don't match.</p>
         frame-vector (nth env frame)]
     (nth frame-vector slot)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn in-env? [env var]
+  &quot;Return the a pair `[frame]`&quot;
   (loop [frames (frames env) n-frame 0]
     (if (empty? frames)
       false
@@ -3424,449 +3418,649 @@ this namespace:
 Evaluate this to run the test for all namespaces:
 (clojure.test/run-all-tests #"^revue..*-test")</p>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/revue/mem.cljx</p>
-</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#revue.interpreter" name="revue.interpreter"><h1 class="project-name">revue.interpreter</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>A continuation- and state-passing interpreter using the memory
-  subsystem.</p>
-</td><td class="codes"><pre class="brush: clojure">(ns revue.interpreter
-  (:require [revue.util :as util :refer [pprint        nthrest]]
-            [revue.mem :as mem]))</pre></td></tr><tr><td class="docs"><p>This namespace contains an experimental interpreter that uses the
-memory subsystem, so that I can</p>
-</td><td class="codes"></td></tr><tr><td class="docs"><ul>
-<li>try out the memory subsystem in a more realistic context than
-the unit tests.</li>
-<li>figure out how exactly the internal representatio used for
-visualizatons and animations should look like; in particular how
-continuations should be represented.</li>
-</ul>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>The current implementations is a simple continuation-passing
-interpreter (that, obviously, also has to be a storage-passing
-interpreter).  Currently only variables defined with <code>define</code>
-should be destructively modified, function parameters and
-variables bound with <code>let</code> are not boxed; modifying them may lead
-to strange behavior if their values escape their lexical context.
-Function parameters are unboxed so that we don't have to allocate
-heap storage for every function call and are therefore properly
-tail recursive.  We could avoid this by pre-processing the source
-and performing a closure analysis pass. </p>
-</td><td class="codes"></td></tr><tr><td class="docs"><h1>Utilities</h1>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>Warn about a problem encountered by the interpreter.</p>
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#revue.vm" name="revue.vm"><h1 class="project-name">revue.vm</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>The virtual machine for the Revue system.</p>
+</td><td class="codes"><pre class="brush: clojure">(ns revue.vm
+  (:require [revue.util :as util
+             :refer [pprint        nthrest -&gt;Env env-value]]
+            [revue.mem :as mem]))</pre></td></tr><tr><td class="docs"><h1>Utilities</h1>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Warn about a problem encountered by the virtual machine.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn warn
   [msg]
-  (util/warn &quot;Interpreter warning:&quot; msg))</pre></td></tr><tr><td class="docs"><p>Notify programmer about a problem encountered by the interpreter.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn note
-  [msg]
-  (util/note &quot;Interpreter note:&quot; msg))</pre></td></tr><tr><td class="docs"><h1>Environments for the interpreter</h1>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>The interpreter uses a simple Clojure map as environment.</p>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>We define functions to create and update the global environment
-which are used to initialize the interpreter.  The interpreter
-only uses one non-standard function for manipulating environment:
-<code>extend-env</code> is called when a new lexical scope is entered and
-returns the previous environment extended with the new bindings.
-To update the environment we simply use <code>assoc</code>, to look up values
-we use <code>get</code> (or one of its alternatives).</p>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>Returns an empty environment.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn empty-env
-  []
-  {})</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def ^:dynamic *initial-bindings* (atom {}))</pre></td></tr><tr><td class="docs"><p>Set the value of <code>*initial-bindings*</code> to the empty map.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn clear-initial-bindings
-  []
-  (reset! *initial-bindings* {}))</pre></td></tr><tr><td class="docs"><p>Defines a global variable, or redefines it if it already exists</p>
-</td><td class="codes"><pre class="brush: clojure">(defn define-global
-  [name value]
-  (swap! *initial-bindings* assoc name value))</pre></td></tr><tr><td class="docs"><p>Returns the global environment for the interpreter.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn global-env
-  []
-  @*initial-bindings*)</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn extend-env [env keys values]
-  (merge env (zipmap keys values)))</pre></td></tr><tr><td class="docs"><h1>Procedures for the interpreter</h1>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>The protocol <code>IProc</code> specifies how the interpreter handles
-procedures.  We define one record type implementing that protocol
-for interpreted procedures and one for primitive procedures that
-are written in Clojure and executed in a single step.</p>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>Procedures that can be invoked by the interpreter</p>
-</td><td class="codes"><pre class="brush: clojure">(defprotocol IProc
-  (apply-proc [this args state]
-    &quot;Apply the procedure to `args` and `state`, and return a new
-    state&quot;))</pre></td></tr><tr><td class="docs"><p>An interpreted procedure.  Its <code>code</code> is the source code to be
-interpreted; <code>params</code> is a list of parameter names; <code>name</code> is the
-name of the procedure (as Clojure symbol), or <code>nil</code> if the
-procedure is anonymous.</p>
-</td><td class="codes"><pre class="brush: clojure">(defrecord Proc [code env params name]
-  IProc
-  (apply-proc [this args state]
-    (assoc state
-      :form (:code this)
-      :env (extend-env (:env this) (:params this) args)
-      :local-variables (conj (:local-variables state) (:params this))
-      :cont `((::return-from-call ~(:env state) ~(:local-variables state))
-              ~@(:cont state))))
-  mem/StoredData
-  (--&gt;clojure [this store]
-    this))</pre></td></tr><tr><td class="docs"><p>A primitive procedure.  Its <code>code</code> is a Clojure function that
-should be invoked.  The <code>params</code> and <code>name</code> fields are as for
-<code>Proc</code></p>
-</td><td class="codes"><pre class="brush: clojure">(defrecord Prim [code params name]
-  IProc
-  (apply-proc [this args state]
-    ((:code this) args state))
-  mem/StoredData
-  (--&gt;clojure [this store]
-    this))</pre></td></tr><tr><td class="docs"><p>A utility function that defines a primitive procedure that can take
-  an arbitrary number of arguments and stores it in the global
-  environment.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn define-nary-global
-  [name fun]
-  (define-global name
-    (-&gt;Prim (fn [args state]
-              (assoc state :form nil :value (apply fun args)))
-            '[&amp; args]
-            name)))</pre></td></tr><tr><td class="docs"><p>A utility function that defines a primitive procedure that takes
-  exactly two arguments and stores it in the global environment.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn define-binary-global
-  [name fun]
-  (define-global name
-    (-&gt;Prim (fn [args state]
-              (assoc state :form nil :value (apply fun args)))
-            '[x y]
-            name)))</pre></td></tr><tr><td class="docs"><p>We can now define the primitive functions that should be in the
-default environment.</p>
-</td><td class="codes"></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(define-nary-global '+ +)
-(define-nary-global '- -)
-(define-nary-global '* *)
-(define-nary-global '/ /)</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(define-binary-global '&lt; &lt;)
-(define-binary-global '&gt; &gt;)
-(define-binary-global '&lt;= &lt;=)
-(define-binary-global '&gt;= &gt;=)</pre></td></tr><tr><td class="docs"><p>We handle functions with (non-memory) effects by pushing the
-effects onto the <code>:effects</code> slot of the state.  This allows the
-visualization to show the effects in any manner it wants.</p>
-</td><td class="codes"></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(define-global 'print
-  (-&gt;Prim
-   (fn [args state]
-     (assoc state
-       :form nil
-       :effects (conj (:effects state) `(:print ~args))))
-   '[&amp;args]
-   'print))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(define-global 'println
-  (-&gt;Prim
-   (fn [args state]
-     (assoc state
-       :form nil
-       :effects (conj (:effects state) `(:println ~args))))
-   '[&amp;args]
-   'println))</pre></td></tr><tr><td class="docs"><h1>A simple state-passing interpreter</h1>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>The core of the simple interpreter is a function <code>step</code> that
-performs one step of the evaluation process.  It operates on an
-iterpreter state that contains all information required by the
-interpreter; i.e., its sole argument is an interpreter state and
-its result is again an interpreter state.</p>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>The state contains the following elements:</p>
-
-<ul>
-<li>the form to be executed</li>
-<li>the environment for the form</li>
-<li>the local variables of the current context</li>
-<li>the store</li>
-<li>a continuation</li>
-<li>the value returned by the previous evaluation step</li>
-<li>the effects encountered so far</li>
-</ul>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>Not sure whether that is a good idea, since we want to share as
-much data as possible, and introducing a record will probably
-store each state in a fresh object.
-TODO: check this</p>
-</td><td class="codes"><pre class="brush: clojure">#_(defrecord State [form env store cont value effects])
-(defn initial-store []
-  [])</pre></td></tr><tr><td class="docs"><p>Create an initial state for the interpreter</p>
+  (util/warn &quot;VM Warning:&quot; msg))</pre></td></tr><tr><td class="docs"><h1>Local Environments</h1>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Local environments are defined in <code>util.cljx</code>.</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><h1>The Global Environment</h1>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Create a hash table and store that represent <code>table</code> in VM data
+  format.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn make-global-env
+  [&amp; [table]]
+  (loop [ks (keys table)
+         vs (vals table)
+         result {}
+         store []]
+    (if ks
+      (let [[v new-store] (mem/-&gt;vm (first vs) store)]
+        (recur (next ks) (next vs) (assoc result (first ks) v) new-store))
+      [result store])))</pre></td></tr><tr><td class="docs"><h1>The VM State</h1>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Create a new return address that jumps to step <code>pc</code> in <code>function</code>.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn make-return-address
+  [{:keys [function pc env]}]
+  {:type :return-address
+   :function function
+   :pc pc
+   :env env})</pre></td></tr><tr><td class="docs"><p>Create a new bytecode-interpreted function.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn make-fn
+  [&amp; {:keys [code env name args]}]
+  {:type :bytecode-function
+   :code code
+   :env env
+   :name name
+   :args args})</pre></td></tr><tr><td class="docs"><p>Create a new state for a VM, initially executing function <code>f</code></p>
 </td><td class="codes"><pre class="brush: clojure">(defn initial-state
-  ([&amp; forms]
-     {:form (util/maybe-add 'begin forms)
-      :env (global-env) :store (initial-store)
-      :local-variables ()
-      :cont nil :value nil :effects []}))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn set-boxed-value [name value-form {:keys [env store cont] :as state} op-name]
-  (let [[box new-store] (mem/new-box nil store)]
-    (when-not (symbol? name)
-      (util/error (str op-name &quot;: first argument must be a symbol.&quot;)))
-    (assoc state
-      :form value-form
-      :env (assoc env name box)
-      :store new-store
-      :cont `((::set! ~name ~box) ~@cont))))</pre></td></tr><tr><td class="docs"><!-- TODO: Refactor this into multi-methods -->
-</td><td class="codes"></td></tr><tr><td class="docs"><p>Perform a single step of the interpreter and return a new state.</p>
-
-<p>  Initially we pick off a few special cases:</p>
-
-<ul>
-<li><p>If <code>form</code> is <code>nil</code> we check whether we have a non-empty
-continuation.  If we do, we continue with the first member of the
-continuation.  Otherwise we are done</p></li>
-<li><p>If <code>form</code> is a symbol, we look up its value in the environment, 
-convert it into its denotation (i.e., the Clojure equivalent)
-and use that as the <code>:value</code> going forward.</p></li>
-<li><p>If <code>form</code> is an atomic value, we leave it alone (since atomic
-values are always represented as their Clojure equivalent.</p></li>
-<li><p>Otherwise we have a compound form.  The first thing we do in that
-case is to check whether it is a macro.  If it is, we expand it and
-return the expansion as new <code>:form</code> (not implemented yet).
-Otherwise, we check whether <code>:form</code> is a special operator.  If it is
-we evaluate it using a special rule.  If <code>form</code> is neither a macro
-nor a special operator it is a function call, and we evaluate the
-call.</p></li>
-</ul>
+  [f]
+  (let [[global-env store] (make-global-env)]
+    {:type :vm-state
+     :function f
+     :code (:code f)
+     :pc 0
+     :global-env global-env
+     :env ()
+     :stack ()
+     :store store
+     :n-args 0
+     :stopped? false}))</pre></td></tr><tr><td class="docs"><h1>The Assembler (Well, Not Yet)</h1>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>We need to have the VM instructions available for the assembler,
+thus we define the <code>assemble</code> function after the VM instructions.
+However, for some instructions it is convenient to have <code>assemble</code>
+available (e.g., for <code>CC</code>), so we provide a forward declaration
+here.</p>
+</td><td class="codes"></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(declare assemble)</pre></td></tr><tr><td class="docs"><h1>VM Instructions</h1>
+</td><td class="codes"></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn primitive? [form env n-args]
+  ;;; TODO: Implement this!
+  nil)</pre></td></tr><tr><td class="docs"><p>Create a new primitive instruction.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn make-prim
+  [symbol n-args opcode always? side-effects?]
+  {:type :primitive-instruction
+   :symbol symbol
+   :n-args n-args
+   :opcode opcode
+   :always? always?
+   :side-effects? side-effects?})</pre></td></tr><tr><td class="docs"><p>Each instruction of the VM is represented as a datatype that
+  implements the <code>VmInst</code> protocol.  The function <code>-step</code> executes the
+  instruction starting in state <code>vm-state</code> and returns a new state of
+  the VM.</p>
+</td><td class="codes"><pre class="brush: clojure">(defprotocol VmInst
+  (-step [this vm-state])
+  (-opcode [this]))</pre></td></tr><tr><td class="docs"><p><code>LVAR</code> pushes the value of the local variable in environment
+location <code>[frame slot]</code> onto the stack.  <code>source</code> is the source
+code expression that was compiled into this instruction which is
+also the name of the variable in the environment.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord LVAR [frame slot source]
+  VmInst
+  (-step [this vm-state]
+    (assoc vm-state
+      :stack (conj (:stack vm-state) (env-value vm-state this))))
+  (-opcode [this]
+    'LVAR))</pre></td></tr><tr><td class="docs"><p><code>LSET</code> pops a value off the stack and puts it into environment
+location <code>[frame slot]</code>.  <code>name</code> is the name of the variable in
+the environment, <code>source</code> is the source expression that was
+compiled into this instruction.  As a special case, if <code>slot</code> is
+equal to the size of the respective frame, this frame is extended
+by an additional slot.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord LSET [frame slot name source]
+  VmInst
+  (-step [this vm-state]
+    (let [{:keys [env stack]} vm-state
+          {:keys [frame slot]} this]
+      (assoc vm-state
+        :env (assoc-in env [frame slot] (peek stack))
+        :stack (pop stack))))
+  (-opcode [this]
+    'LSET))</pre></td></tr><tr><td class="docs"><p><code>GVAR</code> pushes the value of the global variable <code>name</code> onto the
+stack.  If <code>name</code> is not defined in the global environment, <code>nil</code>
+is pushed onto the stack.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord GVAR [name]
+  VmInst
+  (-step [this vm-state]
+    (assoc vm-state
+      :stack (conj (:stack vm-state)
+                   (get (:global-env vm-state) (:name this)))))
+  (-opcode [this]
+    'GVAR))</pre></td></tr><tr><td class="docs"><p><code>GSET</code> pops a value off the stack and stores it in global variable
+<code>name</code>.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord GSET [name source]
+  VmInst
+  (-step [this vm-state]
+    (assoc vm-state
+      :global-env (assoc (:global-env vm-state) name (peek (:stack vm-state)))
+      :stack (pop (:stack vm-state))))
+  (-opcode [this]
+    'GSET))</pre></td></tr><tr><td class="docs"><p><code>POP</code> pops a value off the stack and discards it.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord POP [source]
+  VmInst
+  (-step [this vm-state]
+    (update-in vm-state [:stack] pop))
+  (-opcode [this]
+    'POP))</pre></td></tr><tr><td class="docs"><p><code>CONST</code> pushes a constant value onto the stack.  The <code>value</code>
+parameter is a Clojure value that is converted to VM
+representation by <code>CONST</code>.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord CONST [value source]
+  VmInst
+  (-step [this vm-state]
+    (let [value (:value this)
+          {:keys [stack store]} vm-state
+          [value new-store] (mem/-&gt;vm value store)]
+      (assoc vm-state
+        :stack (conj stack value)
+        :store new-store)))
+  (-opcode [this]
+    'CONST))</pre></td></tr><tr><td class="docs"><p><code>JUMP</code> jumps unconditially to <code>target</code> which is the index of the
+pc in the current function (a non-negative integer).</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord JUMP [target source]
+  VmInst
+  (-step [this vm-state]
+    (assoc vm-state :pc (:target this)))
+  (-opcode [this]
+    'JUMP))</pre></td></tr><tr><td class="docs"><p><code>FJUMP</code> pops a value off the stack and jumps to <code>target</code> if the
+value is falsy.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord FJUMP [target source]
+  VmInst
+  (-step [this vm-state]
+    (let [stack (:stack vm-state)
+          value (peek stack)]
+      (if (not (mem/-&gt;clojure value))
+        (assoc vm-state
+          :pc (:target this)
+          :stack (pop stack))
+        (assoc vm-state
+          :stack (pop stack)))))
+  (-opcode [this]
+    'FJUMP))</pre></td></tr><tr><td class="docs"><p><code>TJUMP</code> pops a value off the stack and jumps to <code>target</code> when the
+value is truthy.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord TJUMP [target source]
+  VmInst
+  (-step [this vm-state]
+    (let [stack (:stack vm-state)
+          value (peek stack)]
+      (if (mem/-&gt;clojure value)
+        (assoc vm-state
+          :pc (:target this)
+          :stack (pop stack))
+        (assoc vm-state
+          :stack (pop stack)))))
+  (-opcode [this]
+    'TJUMP))</pre></td></tr><tr><td class="docs"><p><code>SAVE</code> creates a return address from the current function, program
+counter and environment and pushes it on the stack.  Note that
+since we increment the PC before executing the instruction (in the
+function <code>step</code> defined below), the return address points to the
+instruction <em>after</em> the currently executing one, which is of
+course what we want.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord SAVE [source]
+  VmInst
+  (-step [this vm-state]
+    (let [ret-addr (make-return-address vm-state)]
+      (update-in vm-state [:stack] conj ret-addr)))
+  (-opcode [this]
+    'SAVE))</pre></td></tr><tr><td class="docs"><p><code>RETURN</code> returns from a function.  To this end it removes the
+<em>second</em> element from the stack (which is the return address to
+which we should jump), but leaves the topmost element (which is
+the return value) on the stack.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord RETURN [source]
+  VmInst
+  (-step [this vm-state]
+    (let [stack (:stack vm-state)
+          return-address (second stack)
+          function (:function return-address)]
+      (assoc vm-state
+        :stack (cons (first stack) (list* (drop 2 stack)))
+        :function function
+        :code (:code function)
+        :env (:env return-address)
+        :pc (:pc return-address))))
+  (-opcode [this]
+    'RETURN))</pre></td></tr><tr><td class="docs"><p><code>CALLJ</code> calls a function by jumping to its entry point.  To this
+end, it pops the function that should be invoked from the stack
+and builds a new state that starts the execution of the new
+function at the beginning.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord CALLJ [n-args source]
+  VmInst
+  (-step [this vm-state]
+    (let [[function &amp; new-stack] (:stack vm-state)]
+      (assoc vm-state
+        :stack (vec new-stack)
+        :function function
+        :code (:code function)
+        :env (:env function)
+        :pc 0
+        :n-args (:n-args this))))
+  (-opcode [this]
+    'CALLJ))</pre></td></tr><tr><td class="docs"><p>If <code>n-rest-args</code> is falsy, pop <code>n-args</code> arguments from the stack
+  and put them in a newly created environment frame.  If <code>n-rest-args</code>
+  is truthy it must be an integer, in that case <code>n-args</code> +
+  <code>n-rest-args</code> arguments are popped from the stack; the first
+  <code>n-args</code> are put in individual slots in the newly created
+  environment frame, the last <code>n-rest-args</code> are collected into a
+  vector and put in the (<code>n-args</code> + 1)st slot in the new environment
+  frame.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn move-args-from-stack-to-env
+  [n-args vm-state &amp; [n-rest-args]]
+  (let [stack (:stack vm-state)
+        [tmp-frame tmp-stack] (split-at n-args stack)
+        [new-frame new-stack] (if-not n-rest-args
+                                [(vec tmp-frame) (apply list tmp-stack)]
+                                (let [[rest-args tmp-stack-2] (split-at n-rest-args tmp-stack)]
+                                  [(conj (vec tmp-frame) (vec rest-args))
+                                   (apply list tmp-stack-2)]))]
+    (assoc vm-state
+      :env (conj (:env vm-state) new-frame)
+      :stack new-stack)))</pre></td></tr><tr><td class="docs"><p><code>ARGS</code> is the first bytecode instruction executed by functions
+with fixed arity.  It checks that the arity of the currently
+executing function matches the number of arguments that were
+passed to this call.  If this is the case, it pops <code>n-args</code> values
+of the stack and puts them into a new environment frame.
+Otherwise it stops the computation with an error message.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord ARGS [n-args name source]
+  VmInst
+  (-step [this vm-state]
+    (let [{:keys [n-args name]} this]
+      (if-not (= n-args (:n-args vm-state))
+        (assoc vm-state
+          :stopped? true
+          :reason (str &quot;Function &quot; name &quot; called with &quot; (:n-args vm-state)
+                       &quot; argument(s), but wants exactly &quot; n-args &quot;.&quot;))
+        (move-args-from-stack-to-env n-args vm-state))))
+  (-opcode [this]
+    'ARGS))</pre></td></tr><tr><td class="docs"><p><code>ARGS*</code> is the first bytecode instruction executed by functions
+with variable arity.  It checks that the number of required
+arguments of the currently executing function is less than the
+number of arguments that were passed to this call.  If this is the
+case, it pops <code>n-args</code> values of the stack and puts them into a
+new environment frame.  Otherwise it stops the computation with an
+error message.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord ARGS* [n-args name source]
+  VmInst
+  (-step [this vm-state]
+    (let [{:keys [n-args name]} this
+          supplied-args (:n-args vm-state)]
+      (if-not (&lt;= n-args supplied-args)
+        (assoc vm-state
+          :stopped? true
+          :reason (str &quot;Function &quot; name &quot; called with &quot; supplied-args
+                       &quot; argument(s), but wants at least &quot; n-args &quot;.&quot;))
+        (move-args-from-stack-to-env n-args vm-state (- supplied-args n-args)))))
+  (-opcode [this]
+    'ARGS*))</pre></td></tr><tr><td class="docs"><p><code>FN</code> creates a new closure.  It takes the bytecode-compiled
+<code>function</code> and associates it with the current environment.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord FN [function source]
+  VmInst
+  (-step [this vm-state]
+    (update-in vm-state [:stack] conj
+               (assoc function :env (:env vm-state))))
+  (-opcode [this]
+    'FN))</pre></td></tr><tr><td class="docs"><p><code>PRIM</code> invokes a primitive instruction.  Primitives are
+implemented as Clojure functions that receive the store as first
+argument, the raw VM values as other arguments, and they have to
+return a result that satisfies the <code>StoredData</code> protocol and a new
+store.  No checking is performed by the VM whether the primitive
+was invoked with the correct number of arguments; therefore bad
+calls to primitives may crash the VM.  Primitives are useful for
+functions that need low-level access to the memory system; most
+functions are better implemented as operators (see <code>OP</code> below); in
+particular user-visible functionality should never be implemented
+as primitive.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord PRIM [clj-code source]
+  VmInst
+  (-step [this vm-state]
+    (let [{:keys [n-args stack]} vm-state
+          [raw-args new-stack] (split-at n-args stack)
+          [result new-store] (apply (:clj-code this) (:store vm-state) raw-args)]
+      (assoc vm-state
+        :stack (conj new-stack result)
+        :store new-store)))
+  (-opcode [this]
+    'PRIM))</pre></td></tr><tr><td class="docs"><p><code>SET-CC</code> pops a value off the stack and uses this value as the new
+continuation.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord SET-CC []
+  VmInst
+  (-step [this vm-state]
+    (update-in vm-state [:stack] peek))
+  (-opcode [this]
+    'SET-CC))</pre></td></tr><tr><td class="docs"><p><code>CC</code> pushes a function onto the stack that captures the current
+environment and restores it when it is invoked.  TODO: improve
+explanation.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord CC [source]
+  VmInst
+  (-step [this vm-state]
+    (assoc vm-state
+      :stack (make-fn :code (assemble '((ARGS 1 'CC &quot;%built-in&quot;)
+                                        (LVAR 1 0 stack)
+                                        (SET-CC)
+                                        (LVAR 0 0 fun)
+                                        (RETURN &quot;%built-in&quot;)))
+                      :env (-&gt;Env [(:stack vm-state)])
+                      :name '%cc
+                      :args '[fun])))
+  (-opcode [this]
+    'CC))</pre></td></tr><tr><td class="docs"><p><code>HALT</code> stops the execution of the VM; if <code>step</code> is invoked after
+<code>HALT</code> was called it will return the same state indefinitely.
+This is done by adding a <code>stopped?</code> key to the state; <code>step</code>
+checks for this key and does not evaluate any instructions when it
+is found in the state.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord HALT [source]
+  VmInst
+  (-step [this vm-state]
+    (assoc vm-state
+      :stopped? true
+      :reason &quot;Program terminated.&quot;))
+  (-opcode [this]
+    'HALT))</pre></td></tr><tr><td class="docs"><p><code>OP</code> invokes an operator defined in Clojure code.  These operators
+receive their arguments as Clojure data structures and return
+their result as Clojure data structure; <code>OP</code> performs the
+necessary conversions from and to the VM representation.
+TODO: argument checks, etc.</p>
+</td><td class="codes"><pre class="brush: clojure">(defrecord OP [n clj-code source]
+  VmInst
+  (-step [this vm-state]
+    (let [stack (:stack vm-state)
+          [raw-args new-stack] (split-at n stack)
+          args (mem/-&gt;clojure (vec raw-args))
+          clj-result (apply (:clj-code this) args)
+          [result new-store] (mem/-&gt;vm clj-result (:store vm-state))]
+      (assoc vm-state
+        :stack (conj (vec new-stack) result)
+        :store new-store)))
+  (-opcode [this]
+    'OP))</pre></td></tr><tr><td class="docs"><p>Run a single step of the VM starting in <code>vm-state</code>.  If the VM is
+  stopped, i.e., <code>(:stopped? vm-state)</code> is true, then return the state
+  unchanged.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn step
-  [{:keys [form env store cont value] :as state}]
+  [vm-state]
+  (if (:stopped? vm-state)
+    vm-state
+    (let [instr (nth (:code vm-state) (:pc vm-state))]
+      (-step instr (assoc vm-state
+                     :pc (inc (:pc vm-state))
+                     :instr instr)))))</pre></td></tr><tr><td class="docs"><h1>The Assembler</h1>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>A list of the opcodes implemented by the VM.  Each opcode specifies
+  a constructor (that generates the bytecode instruction), an arity
+  and whether the last argument of the constructor is a source
+  location.</p>
+</td><td class="codes"><pre class="brush: clojure">(def opcodes
+  {'LVAR    {:constructor -&gt;LVAR   :arity 3 :source true}
+   'LSET    {:constructor -&gt;LSET   :arity 4 :source true}
+   'GVAR    {:constructor -&gt;GVAR   :arity 1 :source false}
+   'GSET    {:constructor -&gt;GSET   :arity 2 :source true}
+   'POP     {:constructor -&gt;POP    :arity 1 :source true}
+   'CONST   {:constructor -&gt;CONST  :arity 2 :source true}
+   'JUMP    {:constructor -&gt;JUMP   :arity 2 :source true}
+   'FJUMP   {:constructor -&gt;FJUMP  :arity 2 :source true}
+   'TJUMP   {:constructor -&gt;TJUMP  :arity 2 :source true}
+   'SAVE    {:constructor -&gt;SAVE   :arity 1 :source true}
+   'RETURN  {:constructor -&gt;RETURN :arity 1 :source true}
+   'CALLJ   {:constructor -&gt;CALLJ  :arity 2 :source true}
+   'ARGS    {:constructor -&gt;ARGS   :arity 3 :source true}
+   'ARGS*   {:constructor -&gt;ARGS*  :arity 3 :source true}
+   'FN      {:constructor -&gt;FN     :arity 2 :source true}
+   'PRIM    {:constructor -&gt;PRIM   :arity 2 :source true}
+   'SET-CC  {:constructor -&gt;SET-CC :arity 0 :source false}
+   'CC      {:constructor -&gt;CC     :arity 1 :source true}
+   'HALT    {:constructor -&gt;HALT   :arity 1 :source true}
+   'OP      {:constructor -&gt;OP     :arity 3 :source true}})</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn assemble-inst [inst]
+  (let [[opcode &amp; args] inst]
+    (if-let [opcode-descr (get opcodes opcode)]
+      (cond
+       ;; Default case: operator arity and call arity match
+       (= (:arity opcode-descr) (count args))
+       (apply (:constructor opcode-descr) args)
+       ;; Convenience: operator takes source argument, and call arity
+       ;; is one less than operator arity.
+       (and (:source opcode-descr) (= (:arity opcode-descr) (inc (count args))))
+       (apply (:constructor opcode-descr) (conj (vec args) &quot;no source location&quot;))
+       ;; Default: wrong arity
+       :else
+       (util/error &quot;Opcode &quot; opcode &quot; applied to &quot; (count args)
+                   &quot; arguments, but wants &quot; (:arity opcode-descr)))
+      (util/error &quot;Unknown opcode &quot; opcode &quot; in &quot; inst &quot;.&quot;))))</pre></td></tr><tr><td class="docs"><p>Assemble a sequence of instructions from Clojure lists into
+  <code>VmInst</code> data structures.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn assemble
+  [instructions]
+  ;; TODO: Need to resolve labels for jumps
+  (map assemble-inst instructions))</pre></td></tr><tr><td class="docs"><h1>The VM Proper</h1>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Run the virtual machine.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn vm
+  [prog]
+  (println &quot;Running the VM on &quot; prog))</pre></td></tr><tr><td class="docs"><p>Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
+this namespace:
+(clojure.test/run-tests 'revue.vm-test)
+Evaluate this to run the test for all namespaces:
+(clojure.test/run-all-tests #"^revue..*-test")</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/revue/vm.cljx</p>
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#revue.riley" name="revue.riley"><h1 class="project-name">revue.riley</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>A compiler from a simple Lisp/Scheme/Clojure-like language to the
+  Revue VM.</p>
+</td><td class="codes"><pre class="brush: clojure">(ns revue.riley
+  (:refer-clojure :exclude (compile))
+  (:require [revue.util :as util]
+            [revue.vm :as vm]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn warn [msg]
+  (util/warn &quot;Compiler Warning:&quot; msg))</pre></td></tr><tr><td class="docs"><h1>Some Utilities for the Compiler</h1>
+</td><td class="codes"></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn arg-count
+  ([form min]
+     (arg-count form min min))
+  ([form min max]
+     (let [n-args (count (rest form))]
+       (assert (&lt;= min n-args max)
+               (str &quot;Wrong number of arguments for &quot;
+                    (first form) &quot;: &quot; n-args &quot; supplied, &quot;
+                    min
+                    (if (&gt; max min) (str &quot; to &quot; max) )
+                    &quot; expected.&quot;)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def ^:dynamic *current-function* '%unknown-source)
+(def ^:dynamic *current-form* nil)</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn current-source []
+  (or *current-form* *current-function*))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn gen [opcode &amp; args]
+  (let [opcode-descr (get vm/opcodes opcode)]
+    (assert opcode-descr
+            (str &quot;Unknown bytecode instruction: &quot; opcode))
+    (cond (= (:arity opcode-descr) (count args))
+          (list (list* opcode args))
+          (and (:source opcode-descr) (= (:arity opcode-descr) (inc (count args))))
+          (list (list* opcode (concat args (list (current-source)))))
+          :else
+          (util/error &quot;Bad arity for bytecode instruction &quot; opcode))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn gen-seq [&amp; insts]
+  (apply concat insts))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def label-counter (atom 0))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn gen-label
+  ([]
+     (gen-label &quot;L&quot;))
+  ([prefix]
+     (symbol (str prefix (swap! label-counter inc)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn gen-var [var env]
+  (let [pos (util/in-env? env var)]
+    (if pos
+      (gen 'LVAR (first pos) (second pos) var)
+      (gen 'GVAR var))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn gen-set [var env form]
+  (let [pos (util/in-env? env var)]
+    (if pos
+      (gen 'LSET (first pos) (second pos) var form)
+      ;; TODO: Protect immutable bindings
+      (gen 'GSET var form))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn gen-args [name args n-so-far]
   (cond
-   ;;
-   (nil? form)
-   (if cont
-     (assoc state :form (first cont) :cont (next cont))
-     (assoc state :value nil))
-   ;;
-   (= form :revue.util/syntax-error)
-   (assoc state :form nil :cont nil :value nil
-          :comment &quot;Computation aborted because of a syntax error&quot;)
-   ;;
-   (symbol? form)
-   (assoc state :form nil :value (mem/-&gt;clojure (get env form) store))
-   ;;
-   (util/atomic? form)
-   (assoc state :form nil :value form)
-   ;; TODO: integrate macros here...
-   ;;
+   ;; Reached the end of the arglist.  Fixed arg call.
+   (empty? args)
+   (gen 'ARGS n-so-far name)
+   ;; Found &amp; in the arglist.  Vararg call
+   (= '&amp; (first args))
+   (do
+     (assert (and (util/singleton? (rest args))
+                  (symbol? (first (rest args))))
+             &quot;&amp; must be followed by a single rest arg&quot;)
+     (gen 'ARGS* n-so-far name))
+   ;; Non-empty arglist, symbol in the first position.
+   (and (sequential? args) (symbol? (first args)))
+   (gen-args name (rest args) (inc n-so-far))
+   ;; Something's wrong...
+   :default
+   (util/error &quot;Illegal argument list.&quot;)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn gen-return []
+  (gen 'RETURN *current-function*))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(declare compile)</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn compile-const [c val? more?]
+  (when val?
+    (gen-seq (gen 'CONST c)
+             (when-not more? (gen-return)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn compile-sequence [forms env val? more?]
+  (cond (empty? forms)
+        (compile-const nil val? more?)
+        (util/singleton? forms)
+        (compile (first forms) env val? more?)
+        :else
+        (gen-seq (compile (first forms) env false true)
+                 (compile-sequence (rest forms) env val? more?))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn compile-list [forms env]
+  (if (empty? forms)
+    ()
+    (gen-seq (compile (first forms) env true true)
+             (compile-list (rest forms) env))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn compile-lambda
+  ([args body env]
+     (compile-lambda '%anonymous-lambda args body env))
+  ([name args body env]
+     ;; TODO: Need to invoke the assembler
+     (vm/make-fn :env env :args args
+                 :code (gen-seq (gen-args name args 0)
+                                (compile-sequence
+                                 body
+                                 (conj env (vec args))
+                                 true false)))))</pre></td></tr><tr><td class="docs"><h1>The Main Function</h1>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Compute a dispatch value for the <code>compile</code> function</p>
+</td><td class="codes"><pre class="brush: clojure">(defn compile-dispatch
+  [form env val? more?]
+  (cond
+   (nil? form) ::nil
+   (util/boolean? form) ::boolean
+   (symbol? form) ::symbol
+   (util/atomic? form) ::atom
    :else
    (case (first form)
-     ;; Quote
-     quote
-     (assoc state :form nil :value (rest form))
-     ;; Definitions
-     define
-     (set-boxed-value (nth form 1) (nth form 2) state &quot;define&quot;)
-     set!
-     ;; TODO: add a check that the value already exists and is, in
-     ;; fact, a box.
-     (set-boxed-value (nth form 1) (nth form 2) state &quot;set!&quot;)
-     ::set!
-     (assoc state
-       :form nil
-       :store (mem/box-set! (if (instance? Proc value)
-                              (assoc value :name (nth form 1))
-                              value)
-                            (nth form 2) store))
-     ;; Sequence
-     begin
-     (cond
-      ;; An empty begin evaluates to false.
-      (empty? (rest form))
-      (assoc state :form nil :value false)
-      ;; A begin containing a single form is equivalent to that form.
-      (util/singleton? (rest form))
-      (assoc state :form (nth form 1))
-      :else
-      ;; We have a begin with at least two subforms.  Extract the
-      ;; first subform, push the remaining forms onto the
-      ;; continuation.
-      (assoc state
-        :form (nth form 1)
-        :cont (cons (cons 'begin (nthrest form 2)) cont)))
-     ;; If: Compute the condition and add a continuation that uses
-     ;; this value to choose the correct branch.
-     if
-     (assoc state
-       :form (nth form 1)
-       :cont (cons (cons ::if (nthrest form 2)) cont))
-     ;; The continuation function for the `if` operator
-     ::if
-     (assoc state
-       :form (if (mem/-&gt;clojure value store)
-               (nth form 1)
-               (nth form 2)))
-     ;; Function definition
-     lambda
-     (assoc state
-       :form nil
-       :value (-&gt;Proc (util/maybe-add 'begin (nthrest form 2))
-                      env
-                      (vec (nth form 1))
-                      nil))
-     ;; If we arrive here, we have a function application.  First we
-     ;; need to pick off the continuation functons for function
-     ;; applications, though.
-     ::eval-args
-     (if (empty? (nthrest form 2)) ;; TODO: Check that new form evaluates function?
-       (assoc state
-         :form (first cont)
-         :cont (next cont)
-         :value (nth form 1))
-       (assoc state
-         :form (nth form 2)
-         :cont `((::collect-arg ~(nth form 1) ~@(nthrest form 3)) ~@cont)))
-     ::collect-arg
-     (assoc state
-       :form `(::eval-args ~(conj (nth form 1) value)
-                           ~@(nthrest form 2)))
-     ::eval-proc
-     (assoc state
-       :form (nth form 1)
-       :cont `((::apply ~value) ~@cont))
-     ::apply
-     ;; TODO: Need to handle primitive procedures; define protocol for
-     ;; application
-     (let [proc value
-           [_ args] form]
-       (apply-proc proc args state))
-     ::return-from-call
-     (assoc state
-       :form nil
-       :env (nth form 1)
-       :local-variables (nth form 2))
-     (let [[proc &amp; args] form]
-       (assoc state
-         :form `(::eval-args [] ~@args)
-         :cont `((::eval-proc ~proc) ~@cont)
-         :value [])))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def ^:dynamic *run-n-steps* (atom 100))</pre></td></tr><tr><td class="docs"><p>Run the interpreter for at most <code>*run-n-steps*</code> steps, pretty-print
-  the trace and return the result.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn run-n-steps
-  ([&amp; forms]
-     (let [result (take @*run-n-steps*
-                        (take-while
-                         (fn [{:keys [form cont value]}] (or form cont value))
-                         (iterate step (apply initial-state forms))))]
-       (pprint result)
-       (last result))))</pre></td></tr><tr><td class="docs"><p>Run the interpreter to completion and return the result, i.e.,
-  return a finite sequence containing all steps taken by the
-  interpreter.  This function will only terminate for terminating
-  algorithms, but it saves the user from checking whether the program
-  has reached the end of its execution trace.</p>
-</td><td class="codes"><pre class="brush: clojure">#_(def ^:dynamic *interp-steps* (atom 100000))
-(defn interp
-  ([&amp; forms]
-     (note (str &quot;Calling interp with arguments&quot; forms))
-     (let [result (take-while
-                   (fn [{:keys [form cont value]}] (or form cont value))
-                   (iterate step (apply initial-state forms)))]
-       result)))</pre></td></tr><tr><td class="docs"><p>Read all froms from <code>string</code> and then run <code>interp</code> on them.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn interp-string
-  [string]
-  (apply interp (util/read-program-from-string string)))</pre></td></tr><tr><td class="docs"><p>Read all forms from <code>string</code>, run <code>interp</code> on them until the
-  program is finished and convert to JavaScript.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn interp-js
-  [string]
-  (clj-&gt;js (interp-string string)))</pre></td></tr><tr><td class="docs"><h1>Functions for cleaning up the interpreter trace</h1>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>Remove all :env slots</p>
-</td><td class="codes"><pre class="brush: clojure">(defn remove-envs
-  [states]
-  (map #(dissoc %1 :env) states))</pre></td></tr><tr><td class="docs"><p>Walk <code>d</code> and remove all global variables (that the function knows
-  about).  Currently removes <code>:env</code> keys from maps and turns seqences
-  starting with <code>::return-from-call</code> (which contain an environment if
-  they were produced by the interpreter) into a keyword.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn recursively-remove-global-vars-in
-  [d]
-  (cond
-   (map? d)
-   (into {}
-         (map (fn [[k v]]
-                (if (= k :env)
-                  (let [genv (global-env)]
-                    [k (into {} (keep (fn [[k1 v1]]
-                                        (if (contains? genv k1)
-                                          nil
-                                          [k1 (recursively-remove-global-vars-in v1)]))
-                                      v))])
-                  [k (recursively-remove-global-vars-in v)]))
-              d))
-   (sequential? d)
-   (if (= (first d) ::return-from-call)
-     ::return-from-call
-     (map recursively-remove-global-vars-in d))
-   :else
-   d))</pre></td></tr><tr><td class="docs"><p>Removes all values from environments in a seq of states that are
-  defined in the global environment.  Does not take into account redefinitions!</p>
-</td><td class="codes"><pre class="brush: clojure">(defn remove-global-vars
-  [states]
-  (map recursively-remove-global-vars-in states))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def ^:dynamic *internal-ops* #{::eval-args ::collect-arg ::eval-proc})</pre></td></tr><tr><td class="docs"><p>Removes all forms that don't evaluate user code.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn remove-internal-forms
-  [states]
-  (keep (fn [{:keys [form] :as state}]
-          (if (or (nil? form)
-                  (and (sequential? form) (contains? *internal-ops* (first form))))
-            nil
-            state))
-        states))</pre></td></tr><tr><td class="docs"><p>Removes all continuations from states.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn remove-continuations
-  [states]
-  (map #(dissoc %1 :cont) states))</pre></td></tr><tr><td class="docs"><p>Clean a trace by removing all global vars and internal forms.</p>
-</td><td class="codes"><pre class="brush: clojure">(def cleanup-trace
-  (comp remove-global-vars remove-internal-forms remove-continuations))</pre></td></tr><tr><td class="docs"><p>A wrapper around <code>interp</code> that removes all global variables from
-  the trace and pretty-prints it.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn pretty-interp
-  [&amp; forms]
-  (-&gt; (apply interp forms) remove-global-vars pprint))</pre></td></tr><tr><td class="docs"><p>Like <code>pretty-interp</code>, but converts the result to JavaScript.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn pretty-interp-js
-  [&amp; forms]
-  (-&gt; (apply pretty-interp forms) clj-&gt;js))</pre></td></tr><tr><td class="docs"><p>Extract a JavaScript trace</p>
-</td><td class="codes"><pre class="brush: clojure">(defn extract-js-trace
-  [states]
-  (-&gt; states remove-envs remove-global-vars remove-internal-forms clj-&gt;js))</pre></td></tr><tr><td class="docs"><p>Try the following examples:</p>
-</td><td class="codes"><pre class="brush: clojure">(comment
-  (:value (last (interp '(+ 1 2))))
-  (:value (last (interp-string &quot;(+ 1 2)&quot;)))
-  (pprint
-   (cleanup-trace
-    (interp '((lambda (f n) (if (&lt;= n 1) n (* n (f f (- n 1)))))
-              (lambda (f n) (if (&lt;= n 1) n (* n (f f (- n 1))))) 3))))
-  (pprint
-   (cleanup-trace
-    (interp-string &quot;((lambda (f n) (if (&lt;= n 1) n (* n (f f (- n 1)))))
-                     (lambda (f n) (if (&lt;= n 1) n (* n (f f (- n 1))))) 3)&quot;)))
-  (:value (last (interp '((lambda (f n) (if (&lt;= n 1) n (* n (f f (- n 1)))))
-                          (lambda (f n) (if (&lt;= n 1) n (* n (f f (- n 1))))) 10))))
-  (:value (last (interp '((lambda (f n) (if (&lt;= n 1) n (* n (f f (- n 1)))))
-                          (lambda (f n) (if (&lt;= n 1) n (* n (f f (- n 1))))) 1000N))))
-  (:value (last (interp '(define x (+ 1 2))
-                        '(println x)
-                        '((lambda () (define x 2) (println x)))
-                        '(println x)
-                        'x)))
-  (:value (last (interp-string &quot;(define x (+ 1 2))
-                                (println x)
-                                ((lambda () (define x 2) (println x)))
-                                (println x)
-                                x&quot;)))
-  (:value (last (interp '(define f (lambda (n) n))
-                        '(f 1))))
-  (:value (last (interp '(define f (lambda (n) (if (&gt;= n 1) f 1)))
-                        '(f 1))))
-  (pprint
-   (cleanup-trace
-    (interp '(define fact (lambda (n) (if (&lt;= n 1) 1 (* (fact (- n 1)) n))))
-            '(fact 4))))
-  (:value (last (interp '(define fact (lambda (n) (if (&lt;= n 1) 1 (* (fact (- n 1)) n))))
-                        '(fact 4))))
-  (:value (last (interp '(define fact (lambda (n) (if (&lt;= n 1) 1 (* (fact (- n 1)) n))))
-                        '(fact 1000N))))
-  (:value (last (interp-string &quot;(define fact (lambda (n) (if (&lt;= n 1) 1 (* (fact (- n 1)) n))))
-                                (fact 1000N)&quot;)))
-  ;; You can even interpet non-terminating functions (just don't try
-  ;; to print the whole trace:)
-  (pprint
-   (take 8
-         (-&gt; (interp '(define loop (lambda (n) (loop n))) '(loop 0))
-             remove-global-vars
-             remove-internal-forms))))</pre></td></tr><tr><td class="docs"><p>Evaluate this (e.g., with <code>C-x C-e</code> in Cider) to run the tests for
-this namespace:</p>
-</td><td class="codes"><pre class="brush: clojure">(comment
-  (clojure.test/run-tests 'revue.interpreter-test)
-  )</pre></td></tr><tr><td class="docs"><p>Evaluate this to run the test for all namespaces:</p>
-</td><td class="codes"><pre class="brush: clojure">(comment
-  (clojure.test/run-all-tests #&quot;^revue\..*-test&quot;)
-  )</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/revue/interpreter.cljx</p>
-</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/gdeer81/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a><div id="floating-toc"><ul><li class="floating-toc-li" id="floating-toc_revue.util">revue.util</li><li class="floating-toc-li" id="floating-toc_revue.mem">revue.mem</li><li class="floating-toc-li" id="floating-toc_revue.interpreter">revue.interpreter</li></ul></div></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
+     quote ::quote
+     set! ::setter
+     begin ::sequence
+     if ::conditional
+     lambda ::closure
+     ::function-application)))</pre></td></tr><tr><td class="docs"><p>Compile Riley code into bytecode instructions for the Revue VM.</p>
+</td><td class="codes"><pre class="brush: clojure">(defmulti compile
+  compile-dispatch)</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::nil [form env val? more?]
+  (compile-const nil val? more?))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::boolean [form env val? more?]
+  (compile-const form val? more?))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::symbol [var env val? more?]
+  (if val?
+    (gen-seq (gen-var var env)
+             (when-not more? (gen-return)))
+    ()))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::atom [atom env val? more?]
+  (compile-const atom val? more?))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::quote [form env val? more?]
+  (arg-count form 1)
+  (compile-const form val? more?))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::setter [[_ var val :as form] env val? more?]
+  (arg-count form 2)
+  (assert (symbol? var)
+          (str &quot;Only symbols can be set!, not &quot; var))
+  (binding [*current-form* form]
+    (gen-seq
+     (compile val env true true)
+     (gen-set var env form)
+     (when-not val? (gen 'POP form))
+     (when-not more? (gen-return)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::sequence [form env val? more?]
+  (binding [*current-form* form]
+    (compile-sequence (rest form) env val? more?)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::conditional
+  [[_ pred then &amp; [else] :as form] env val? more?]
+  (arg-count form 2 3)
+  (binding [*current-form* form]
+    (cond
+     ;; (if nil x y) or (if false x y) =&gt; y
+     (not pred)
+     (compile else env val? more?)
+     ;; (if &lt;truthy&gt; x y) =&gt; x
+     (util/constant? pred)
+     (compile then env val? more?)
+     ;; TODO: Fold primitives here...
+     :else
+     (let [pcode (compile pred env true true)
+           tcode (compile then env val? more?)
+           ecode (compile else env val? more?)]
+       (cond
+        ;; (if p x x) =&gt; (begin p x)
+        (= tcode ecode)
+        (gen-seq (compile pred env false true) ecode)
+        ;; TODO: Some other optimizations...
+        :else
+        (let [L1 (gen-label)
+              L2 (if more? (gen-label))]
+          (gen-seq pcode
+                   (gen 'FJUMP L1)
+                   tcode
+                   (when more? (gen 'JUMP L2))
+                   (list L1)
+                   ecode
+                   (if more? (list L2)))))))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::closure
+  [[_ args &amp; body :as form] env val? more?]
+  (binding [*current-form* form
+            *current-function* form]
+    (let [f (compile-lambda args body env)]
+      (gen-seq (gen 'FN f)
+               (when-not more? (gen-return))))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod compile ::function-application
+  [[f &amp; args :as form] env val? more?]
+  (binding [*current-form* form]
+    (let [prim (vm/primitive? f env (count args))]
+      (cond
+       ;; Invoking a primitive function
+       prim
+       (if (and (not val?) (not (:side-effects prim)))
+         (compile-sequence args env false more?)
+         (gen-seq (compile-list args env)
+                  (when-not val? (gen 'POP))
+                  (when-not more? (gen-return))))
+       ;; ((lambda () body)) =&gt; (begin body)
+       ;; NOTE: lambda is hardcoded here!
+       (and (sequential? f) (= (first f) 'lambda) (empty? (second f)))
+       (do
+         (assert (empty? args)
+                 &quot;Calling parameterless function with arguments.&quot;)
+         (compile-sequence (drop 2 f) env val? more?))
+       ;; Further work: save continuation point
+       more?
+       (let [K (gen-label 'K)]
+         (gen-seq (gen 'SAVE K)
+                  (compile-list args env)
+                  (compile f env true true)
+                  (gen 'CALLJ (count args))
+                  (list K)
+                  (when-not val? (gen 'POP))))
+       ;; Function call as rename plus goto
+       :else
+       (gen-seq (compile-list args env)
+                (compile f env true true)
+                (gen 'CALLJ (count args)))))))</pre></td></tr><tr><td class="docs"><p>Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
+this namespace:
+(clojure.test/run-tests 'revue.riley-test)
+Evaluate this to run the test for all namespaces:
+(clojure.test/run-all-tests #"^revue..*-test")</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/revue/riley.cljx</p>
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/gdeer81/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a><div id="floating-toc"><ul><li class="floating-toc-li" id="floating-toc_revue.util">revue.util</li><li class="floating-toc-li" id="floating-toc_revue.mem">revue.mem</li><li class="floating-toc-li" id="floating-toc_revue.vm">revue.vm</li><li class="floating-toc-li" id="floating-toc_revue.riley">revue.riley</li></ul></div></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
 SyntaxHighlighter.all();
 
 // hackity hack
