@@ -170,7 +170,6 @@
 ;;; Local Environment for Compiler and VM
 ;;; =====================================
 
-
 ;;; Local environments are implemented as a sequence of frames.  We
 ;;; have to be able to retreive values by giving an index of the form
 ;;; `[frame slot]`, and we need to be able to push new frames at index

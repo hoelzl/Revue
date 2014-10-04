@@ -185,7 +185,6 @@
       (is (= (get env 0) 3))
       (is (= (get env 1) 2))
       (is (= (get env 2) 1)))))
-
 (deftest Env-10
   (testing "Env: get-in"
     (let [env (util/->Env [[6 7 8 9] [4 5] [1 2 3]])]
@@ -212,9 +211,23 @@
       (is (= (assoc-in env [2 2] 10) [[1 2 3] [4 5] [6 7 10 9]]))
       (is (= (assoc-in env [2 3] 10) [[1 2 3] [4 5] [6 7 8 10]])))))
 
+(deftest env-1
+  (testing "env"
+    (let [env (util/env [1 2 3] [4 5] [6 7 8 9])]
+      (is (= (get-in env [0 0]) 1))
+      (is (= (get-in env [0 1]) 2))
+      (is (= (get-in env [0 2]) 3))
+      (is (= (get-in env [1 0]) 4))
+      (is (= (get-in env [1 1]) 5))
+      (is (= (get-in env [2 0]) 6))
+      (is (= (get-in env [2 1]) 7))
+      (is (= (get-in env [2 2]) 8))
+      (is (= (get-in env [2 3]) 9)))))
+
+
 (deftest env-value-01
   (testing "env-value"
-    (let [vm-state {:env (util/->Env [[2 3 4] [0 1]])}]
+    (let [vm-state {:env (util/env [0 1] [2 3 4])}]
       (is (= (util/env-value vm-state {:frame 0 :slot 0}) 0))
       (is (= (util/env-value vm-state {:frame 0 :slot 1}) 1))
       (is (= (util/env-value vm-state {:frame 1 :slot 0}) 2))
@@ -223,7 +236,7 @@
 
 (deftest in-env?-01
   (testing "in-env?"
-    (let [env (util/->Env [[:d :e :f :g] [:a :b :c]])]
+    (let [env (util/env [:a :b :c] [:d :e :f :g])]
       (is (= (util/in-env? env :a) [0 0]))
       (is (= (util/in-env? env :b) [0 1]))
       (is (= (util/in-env? env :c) [0 2]))

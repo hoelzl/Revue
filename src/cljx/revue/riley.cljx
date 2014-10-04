@@ -2,7 +2,8 @@
   "A compiler from a simple Lisp/Scheme/Clojure-like language to the
   Revue VM."
   (:refer-clojure :exclude (compile))
-  (:require [revue.util :as util]
+  (:require [revue.util :as util
+             :refer [pprint #+cljs nthrest env env-value]]
             [revue.vm :as vm]))
 
 (defn warn [msg]
@@ -34,9 +35,10 @@
     (assert opcode-descr
             (str "Unknown bytecode instruction: " opcode))
     (cond (= (:arity opcode-descr) (count args))
-          (list (list* opcode args))
-          (and (:source opcode-descr) (= (:arity opcode-descr) (inc (count args))))
-          (list (list* opcode (concat args (list (current-source)))))
+          (list {:type :instruction
+                 :code (list* opcode args)
+                 :source (current-source)
+                 :function *current-function*})
           :else
           (util/error "Bad arity for bytecode instruction " opcode))))
 
@@ -49,20 +51,23 @@
   ([]
      (gen-label "L"))
   ([prefix]
-     (symbol (str prefix (swap! label-counter inc)))))
+     {:type :label
+      :name (symbol (str prefix (swap! label-counter inc)))}))
 
 (defn gen-var [var env]
-  (let [pos (util/in-env? env var)]
-    (if pos
-      (gen 'LVAR (first pos) (second pos) var)
-      (gen 'GVAR var))))
+  (binding [*current-form* var]
+    (let [pos (util/in-env? env var)]
+      (if pos
+        (gen 'LVAR (first pos) (second pos))
+        (gen 'GVAR var)))))
 
 (defn gen-set [var env form]
-  (let [pos (util/in-env? env var)]
-    (if pos
-      (gen 'LSET (first pos) (second pos) var form)
-      ;; TODO: Protect immutable bindings
-      (gen 'GSET var form))))
+  (binding [*current-form* form]
+    (let [pos (util/in-env? env var)]
+      (if pos
+        (gen 'LSET (first pos) (second pos))
+        ;; TODO: Protect immutable bindings
+        (gen 'GSET var)))))
 
 (defn gen-args [name args n-so-far]
   (cond
