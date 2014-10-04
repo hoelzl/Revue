@@ -5,7 +5,8 @@
   machine."
   (:require #+cljs [cljs.reader :as reader]
             ;; Maybe use clojure.core/read-string for Clojure?
-            #+clj [clojure.edn :as reader]
+            ;; #+clj [clojure.edn :as reader]
+            #+clj [clojure.tools.reader :as reader]
             #+clj [clojure.pprint :as pprint]))
 
 
@@ -40,9 +41,9 @@
 ;;; the `error` and `warning` functions.  Later we will have to
 ;;; add a better error-handling protocol.
 
-;;; <!--
+;;; @MargDisable
 ;;; TODO: Replace these functions with more useful implementations
-;;; -->
+;;; @MargEnable
 
 (defn error
   "The `error` function is a simple wrapper around `throw` that
@@ -52,8 +53,6 @@
   [& msg]
   (throw (#+clj java.lang.Exception. #+cljs js/Error.
                 (apply str msg))))
-
-
 
 (def ^:dynamic *print-warnings*
   "If `*print-warnings*` is truthy, warning messages are printed to
@@ -94,7 +93,8 @@
 
 (defn singleton?
   "Returns true iff `coll` contains exactly one element,
-  i.e., `(singleton? x)` is always equivalent to `(= (count x) 1)`"
+  i.e., `(singleton? x)` is always equivalent to `(= (count x) 1)` but
+  more efficient for collections where `count` is not O(1).''"
   [coll]
   (and (not (empty? coll))
        (not (next coll))))
@@ -144,36 +144,28 @@
 ;;; Utilities for reading the program source
 ;;; ========================================
 
-#+clj
-(defn read-program-from-string
-  "Read all forms from the input string."
-  [string]
-  (try
-    (with-open [stream (-> (java.io.StringReader. string)
-                           clojure.lang.LineNumberingPushbackReader.)]
-      (loop [form (read stream false stream)
-             forms []]
-        (if (identical? form stream)
-          forms
-          (recur (read stream false stream)
-                 (conj forms form)))))
-    (catch java.lang.Exception e
-      [::syntax-error])))
+;;; @MargDisable
+;;; TODO: Improve the error handling for this
+;;; @MargEnable
 
-#+cljs
 (defn read-program-from-string
-  "Read all forms from the input string."
+  "Read all forms from the input string and return them as sequence.
+  Return the sequence `[::syntax-error]` if reading fails."
   [string]
   (try
-    (let [stream (cljs.reader/push-back-reader string)]
-      (loop [form (cljs.reader/read stream false stream nil)
-             forms []]
-        (if (identical? form stream)
-          forms
-          (recur (cljs.reader/read stream false stream nil)
-                 (conj forms form)))))
-    (catch js/Error e
-      [::syntax-error])))
+    (#+clj with-open #+cljs let
+           [stream
+            #+clj (-> (java.io.StringReader. string)
+                      clojure.lang.LineNumberingPushbackReader.)
+            #+cljs (reader/push-back-reader string)]
+           (loop [form (reader/read stream false stream)
+                  forms []]
+             (if (identical? form stream)
+               forms
+               (recur (reader/read stream false stream)
+                      (conj forms form)))))
+    (catch #+clj java.lang.Exception #+cljs js/Error e
+           [::syntax-error])))
 
 ;;; Local Environment for Compiler and VM
 ;;; =====================================
@@ -198,6 +190,8 @@
   environment frames."
   (frames [this]))
 
+;;; We need the `->Env` constructor for creating new environments in
+;;; `conj`.
 (declare ->Env)
 
 #+clj
@@ -345,6 +339,11 @@
 (defmethod print-method Env [env writer]
   (.write writer (str "#" (print-str (class env)) "{:frames " (frames env) "}")))
 
+(defn env [& frames]
+  "Return a new environment containing `frames` in the given
+  order (i.e., `(first frames)` is the first frame, etc.)."
+  (->Env (vec (map vec (reverse frames))))) 
+
 (defn env-value
   "Return the value at position `[frame slot]` in `vm-state`'s
   environment.  This is similar to `(get-in env [frame slot])` but
@@ -356,6 +355,7 @@
     (nth frame-vector slot)))
 
 (defn in-env? [env var]
+  "Return the a pair `[frame]`"
   (loop [frames (frames env) n-frame 0]
     (if (empty? frames)
       false
@@ -369,7 +369,10 @@
         result
         (recur (rest frames) (inc n-frame))))))
 
-;;; Alternative implementation of `in-env?`.
+;;; @MargDisable
+;;; Alternative implementation of `in-env?`.  I'm not sure which one I
+;;; prefer, neither one seems as elegant as it should be.
+
 #_
 (defn in-env? [env var]
   (first
@@ -381,13 +384,13 @@
                      [n-frame pos-in-frame]
                      nil))
                  (frames env))))
+;;; @MargEnable
 
-
-;;; <!--
+;;; @MargDisable
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
 ;;; (clojure.test/run-tests 'revue.util-test)
 ;;; Evaluate this to run the test for all namespaces:
 ;;; (clojure.test/run-all-tests #"^revue\..*-test")
-;;; -->
+;;; @MargEnable
 
