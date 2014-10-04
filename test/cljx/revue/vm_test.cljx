@@ -158,41 +158,41 @@
 
 (deftest SAVE-step-01
   (testing "SAVE"
-    (is (= (vm/-step (vm/->SAVE 10) {:stack '(4) :function 'foo :pc 5 :env (util/env [1 2 3])})
-           {:stack (list {:type :return-address :function 'foo :pc 10 :env (util/env [1 2 3])}
+    (is (= (vm/-step (vm/->SAVE 10) {:stack '(4) :fun 'foo :pc 5 :env (util/env [1 2 3])})
+           {:stack (list {:type :return-address :fun 'foo :pc 10 :env (util/env [1 2 3])}
                          4)
-            :function 'foo :pc 5 :env (util/env [1 2 3])}))))
+            :fun 'foo :pc 5 :env (util/env [1 2 3])}))))
 
 (deftest RETURN-step-01
   (testing "RETURN"
     (let [f {:code (list (vm/->ARGS 1 nil)
                          (vm/->RETURN 'f))}
           ret-addr (vm/make-return-address
-                    {:function f
+                    {:fun f
                      :pc 1
                      :env (util/env [1 2 3])})]
       (is (= (vm/-step (vm/->RETURN 'bar)
                        {:stack (list 1 ret-addr 4)
-                        :function 'bar :pc 10 :env (util/env [4 5])})
+                        :fun 'bar :pc 10 :env (util/env [4 5])})
              {:stack '(1 4)
-              :function f
+              :fun f
               :code (:code f)
               :pc (:pc ret-addr)
               :env (:env ret-addr)})))))
 
 (deftest CALLJ-step-01
   (testing "CALLJ"
-    (let [f (vm/make-fn :code (list (vm/->ARGS 1 nil)
-                                    (vm/->RETURN 'foo))
-                        :env (util/env [1 2 3])
-                        :name 'foo
-                        :args '(x))]
+    (let [f (vm/make-fun :code (list (vm/->ARGS 1 nil)
+                                     (vm/->RETURN 'foo))
+                         :env (util/env [1 2 3])
+                         :name 'foo
+                         :args '(x))]
       (is (= (vm/-step (vm/->CALLJ 1)
                        {:stack (list f 4)
-                        :function 'bar :pc 10 :env (util/env [4 5])})
+                        :fun 'bar :pc 10 :env (util/env [4 5])})
              {:n-args 1
               :stack '(4)
-              :function f
+              :fun f
               :code (:code f)
               :pc 0
               :env (:env f)})))))
@@ -266,15 +266,15 @@
                :stopped? true
                :reason "Function foo called with 2 argument(s), but wants at least 3."))))))
 
-(deftest FN-step-01
-  (testing "FN"
-    (let [f (vm/make-fn :code (list (vm/->ARGS 1 'foo)
-                                    (vm/->RETURN 'foo))
-                        :env (util/env [1 2 3])
-                        :name 'foo
-                        :args '(x))
+(deftest FUN-step-01
+  (testing "FUN"
+    (let [f (vm/make-fun :code (list (vm/->ARGS 1 'foo)
+                                     (vm/->RETURN 'foo))
+                         :env (util/env [1 2 3])
+                         :name 'foo
+                         :args '(x))
           env  (util/env [5 6])]
-      (is (= (vm/-step (vm/->FN f) {:stack '(1 2) :env env})
+      (is (= (vm/-step (vm/->FUN f) {:stack '(1 2) :env env})
              {:stack (list (assoc f :env env) 1 2)
               :env env})))))
 

@@ -38,29 +38,28 @@
 
 (deftest arg-count-02
   (testing "Arg count does not match."
-    (is (thrown? #+clj java.lang.AssertionError #+cljs Error
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (riley/arg-count '(foo :a) 0)))
-    (is (thrown? #+clj java.lang.AssertionError #+cljs Error
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (riley/arg-count '(foo :a :b :c) 0)))
-    (is (thrown? #+clj java.lang.AssertionError #+cljs Error
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (riley/arg-count '(foo) 1)))
-    (is (thrown? #+clj java.lang.AssertionError #+cljs Error
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (riley/arg-count '(foo :a :b) 1)))
-    (is (thrown? #+clj java.lang.AssertionError #+cljs Error
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (riley/arg-count '(foo :a :b :c) 1)))
-    (is (thrown? #+clj java.lang.AssertionError #+cljs Error
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (riley/arg-count '(foo) 1 3)))
-    (is (thrown? #+clj java.lang.AssertionError #+cljs Error
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (riley/arg-count '(foo :a :b :c :d) 1 3)))))
 
 (deftest gen-01
   (testing "Generating instructions."
     (binding [riley/*current-form* 'x]
       (is (= (riley/gen 'LSET 0 0)
-             '({:type :instruction
-                :code (LSET 0 0)
-                :source x
-                :function %unknown-source}))))))
+             (list (assoc (vm/->LSET 0 0)
+                     :source 'x
+                     :function '%unknown-source)))))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

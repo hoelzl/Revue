@@ -35,10 +35,9 @@
     (assert opcode-descr
             (str "Unknown bytecode instruction: " opcode))
     (cond (= (:arity opcode-descr) (count args))
-          (list {:type :instruction
-                 :code (list* opcode args)
-                 :source (current-source)
-                 :function *current-function*})
+          (list (assoc (apply (:constructor opcode-descr) args)
+                  :source (current-source)
+                  :function *current-function*))
           :else
           (util/error "Bad arity for bytecode instruction " opcode))))
 
@@ -118,12 +117,12 @@
      (compile-lambda '%anonymous-lambda args body env))
   ([name args body env]
      ;; TODO: Need to invoke the assembler
-     (vm/make-fn :env env :args args
-                 :code (gen-seq (gen-args name args 0)
-                                (compile-sequence
-                                 body
-                                 (conj env (vec args))
-                                 true false)))))
+     (vm/make-fun :env env :args args
+                  :code (gen-seq (gen-args name args 0)
+                                 (compile-sequence
+                                  body
+                                  (conj env (vec args))
+                                  true false)))))
 
 ;;; The Main Function
 ;;; =================
@@ -176,7 +175,7 @@
     (gen-seq
      (compile val env true true)
      (gen-set var env form)
-     (when-not val? (gen 'POP form))
+     (when-not val? (gen 'POP))
      (when-not more? (gen-return)))))
 
 (defmethod compile ::sequence [form env val? more?]
@@ -220,7 +219,7 @@
   (binding [*current-form* form
             *current-function* form]
     (let [f (compile-lambda args body env)]
-      (gen-seq (gen 'FN f)
+      (gen-seq (gen 'FUN f)
                (when-not more? (gen-return))))))
 
 (defmethod compile ::function-application

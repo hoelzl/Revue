@@ -38,14 +38,14 @@
 ;;; ============
 
 (defn make-return-address
-  "Create a new return address that jumps to step `pc` in `function`."
-  [{:keys [function pc env]}]
+  "Create a new return address that jumps to step `pc` in `fun`."
+  [{:keys [fun pc env]}]
   {:type :return-address
-   :function function
+   :fun fun
    :pc pc
    :env env})
 
-(defn make-fn
+(defn make-fun
   "Create a new bytecode-interpreted function."
   [& {:keys [code env name args]}]
   {:type :bytecode-function
@@ -59,7 +59,7 @@
   [f]
   (let [[global-env store] (make-global-env)]
     {:type :vm-state
-     :function f
+     :fun f
      :code (:code f)
      :pc 0
      :global-env global-env
@@ -239,16 +239,16 @@
 ;;; *second* element from the stack (which is the return address to
 ;;; which we should jump), but leaves the topmost element (which is
 ;;; the return value) on the stack.
-(defrecord RETURN [function]
+(defrecord RETURN [fun]
   VmInst
   (-step [this vm-state]
     (let [stack (:stack vm-state)
           return-address (second stack)
-          function (:function return-address)]
+          fun (:fun return-address)]
       (assoc vm-state
         :stack (cons (first stack) (list* (drop 2 stack)))
-        :function function
-        :code (:code function)
+        :fun fun
+        :code (:code fun)
         :env (:env return-address)
         :pc (:pc return-address))))
   (-opcode [this]
@@ -261,12 +261,12 @@
 (defrecord CALLJ [n-args]
   VmInst
   (-step [this vm-state]
-    (let [[function & new-stack] (:stack vm-state)]
+    (let [[fun & new-stack] (:stack vm-state)]
       (assoc vm-state
         :stack (vec new-stack)
-        :function function
-        :code (:code function)
-        :env (:env function)
+        :fun fun
+        :code (:code fun)
+        :env (:env fun)
         :pc 0
         :n-args (:n-args this))))
   (-opcode [this]
@@ -333,15 +333,15 @@
   (-opcode [this]
     'ARGS*))
 
-;;; `FN` creates a new closure.  It takes the bytecode-compiled
+;;; `FUN` creates a new closure.  It takes the bytecode-compiled
 ;;; `function` and associates it with the current environment.
-(defrecord FN [function]
+(defrecord FUN [fun]
   VmInst
   (-step [this vm-state]
     (update-in vm-state [:stack] conj
-               (assoc function :env (:env vm-state))))
+               (assoc fun :env (:env vm-state))))
   (-opcode [this]
-    'FN))
+    'FUN))
 
 ;;; `PRIM` invokes a primitive instruction.  Primitives are
 ;;; implemented as Clojure functions that receive the store as first
@@ -382,7 +382,7 @@
   VmInst
   (-step [this vm-state]
     (assoc vm-state
-      :stack (make-fn :code (assemble '((ARGS 1 'CC "%built-in")
+      :stack (make-fun :code (assemble '((ARGS 1 'CC "%built-in")
                                         (LVAR 1 0 stack)
                                         (SET-CC)
                                         (LVAR 0 0 fun)
@@ -463,7 +463,7 @@
    'CALLJ   {:constructor ->CALLJ  :arity 1 :source true}
    'ARGS    {:constructor ->ARGS   :arity 2 :source true}
    'ARGS*   {:constructor ->ARGS*  :arity 2 :source true}
-   'FN      {:constructor ->FN     :arity 1 :source true}
+   'FUN     {:constructor ->FUN    :arity 1 :source true}
    'PRIM    {:constructor ->PRIM   :arity 1 :source true}
    'SET-CC  {:constructor ->SET-CC :arity 0 :source false}
    'CC      {:constructor ->CC     :arity 0 :source true}
@@ -471,17 +471,19 @@
    'OP      {:constructor ->OP     :arity 2 :source true}})
 
 (defn assemble-inst [inst]
-  (let [[opcode & args] inst]
-    (if-let [opcode-descr (get opcodes opcode)]
-      (cond
-       ;; Operator arity and call arity match
-       (= (:arity opcode-descr) (count args))
-       (apply (:constructor opcode-descr) args)
-       ;; Wrong arity
-       :else
-       (util/error "Opcode " opcode " applied to " (count args)
-                   " arguments, but wants " (:arity opcode-descr)))
-      (util/error "Unknown opcode " opcode " in " inst "."))))
+  (if (satisfies? VmInst inst)
+    inst
+    (let [[opcode & args] inst]
+      (if-let [opcode-descr (get opcodes opcode)]
+        (cond
+         ;; Operator arity and call arity match
+         (= (:arity opcode-descr) (count args))
+         (apply (:constructor opcode-descr) args)
+         ;; Wrong arity
+         :else
+         (util/error "Opcode " opcode " applied to " (count args)
+                     " arguments, but wants " (:arity opcode-descr)))
+        (util/error "Unknown opcode " opcode " in " inst ".")))))
 
 (defn assemble
   "Assemble a sequence of instructions from Clojure lists into
