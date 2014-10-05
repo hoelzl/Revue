@@ -35,9 +35,9 @@
     (assert opcode-descr
             (str "Unknown bytecode instruction: " opcode))
     (cond (= (:arity opcode-descr) (count args))
-          (list (assoc (apply (:constructor opcode-descr) args)
-                  :source (current-source)
-                  :function *current-function*))
+          [(assoc (apply (:constructor opcode-descr) args)
+              :source (current-source)
+              :function *current-function*)]
           :else
           (util/error "Bad arity for bytecode instruction " opcode))))
 
@@ -57,14 +57,14 @@
   (binding [*current-form* var]
     (let [pos (util/in-env? env var)]
       (if pos
-        (gen 'LVAR (first pos) (second pos))
+        (gen 'LVAR (first pos) (second pos) var)
         (gen 'GVAR var)))))
 
 (defn gen-set [var env form]
   (binding [*current-form* form]
     (let [pos (util/in-env? env var)]
       (if pos
-        (gen 'LSET (first pos) (second pos))
+        (gen 'LSET (first pos) (second pos) var)
         ;; TODO: Protect immutable bindings
         (gen 'GSET var)))))
 

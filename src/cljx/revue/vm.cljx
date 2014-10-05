@@ -109,7 +109,7 @@
 ;;; location `[frame slot]` onto the stack.  `source` is the source
 ;;; code expression that was compiled into this instruction which is
 ;;; also the name of the variable in the environment.
-(defrecord LVAR [frame slot]
+(defrecord LVAR [frame slot name]
   VmInst
   (-step [this vm-state]
     (assoc vm-state
@@ -123,7 +123,7 @@
 ;;; compiled into this instruction.  As a special case, if `slot` is
 ;;; equal to the size of the respective frame, this frame is extended
 ;;; by an additional slot.
-(defrecord LSET [frame slot]
+(defrecord LSET [frame slot name]
   VmInst
   (-step [this vm-state]
     (let [{:keys [env stack]} vm-state
@@ -413,11 +413,11 @@
 ;;; their result as Clojure data structure; `OP` performs the
 ;;; necessary conversions from and to the VM representation.
 ;;; TODO: argument checks, etc.
-(defrecord OP [n clj-code]
+(defrecord OP [n-args clj-code]
   VmInst
   (-step [this vm-state]
     (let [stack (:stack vm-state)
-          [raw-args new-stack] (split-at n stack)
+          [raw-args new-stack] (split-at n-args stack)
           args (mem/->clojure (vec raw-args))
           clj-result (apply (:clj-code this) args)
           [result new-store] (mem/->vm clj-result (:store vm-state))]
@@ -427,6 +427,9 @@
   (-opcode [this]
     'OP))
 
+(defn opcode [inst]
+  "Return the opcode of `inst`"
+  (-opcode inst))
 
 (defn step
   "Run a single step of the VM starting in `vm-state`.  If the VM is
@@ -449,8 +452,8 @@
   a constructor (that generates the bytecode instruction), an arity
   and whether the last argument of the constructor is a source
   location."
-  {'LVAR    {:constructor ->LVAR   :arity 2 :source true}
-   'LSET    {:constructor ->LSET   :arity 2 :source true}
+  {'LVAR    {:constructor ->LVAR   :arity 3 :source true}
+   'LSET    {:constructor ->LSET   :arity 3 :source true}
    'GVAR    {:constructor ->GVAR   :arity 1 :source false}
    'GSET    {:constructor ->GSET   :arity 1 :source true}
    'POP     {:constructor ->POP    :arity 0 :source true}

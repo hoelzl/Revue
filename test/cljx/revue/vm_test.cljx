@@ -31,13 +31,13 @@
   (testing "LVAR -step function."
     (let [env (util/env [0 1] [2 3])
           state {:env env :stack '(4 5)}]
-      (is (= (vm/-step (vm/->LVAR 0 0) state)
+      (is (= (vm/-step (vm/->LVAR 0 0 'x) state)
              {:env env :stack '(0 4 5)}))
-      (is (= (vm/-step (vm/->LVAR 0 1) state)
+      (is (= (vm/-step (vm/->LVAR 0 1 'x) state)
              {:env env :stack '(1 4 5)}))
-      (is (= (vm/-step (vm/->LVAR 1 0) state)
+      (is (= (vm/-step (vm/->LVAR 1 0 'x) state)
              {:env env :stack '(2 4 5)}))
-      (is (= (vm/-step (vm/->LVAR 1 1) state)
+      (is (= (vm/-step (vm/->LVAR 1 1 'x) state)
              {:env env :stack '(3 4 5)})))))
 
 (deftest LVAR-step-02
@@ -45,23 +45,23 @@
     (let [env (util/env [0 1] [2 3])
           state {:env env :stack '(4 5)}]
       (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
-                   (vm/-step (vm/->LVAR 2 0) state)))
+                   (vm/-step (vm/->LVAR 2 0 'x) state)))
       (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
-                   (vm/-step (vm/->LVAR 0 2) state)))))
+                   (vm/-step (vm/->LVAR 0 2 'x) state)))))
 
 (deftest LSET-step-01
   (testing "LSET -step function"
     (let [env (util/env [0 1] [2 3])
           state {:env env :stack '(4 5)}]
-      (is (= (vm/-step (vm/->LSET 0 0) state)
+      (is (= (vm/-step (vm/->LSET 0 0 'x) state)
              {:env (util/env [4 1] [2 3]) :stack '(5)}))
-      (is (= (vm/-step (vm/->LSET 0 1) state)
+      (is (= (vm/-step (vm/->LSET 0 1 'x) state)
              {:env (util/env [0 4] [2 3]) :stack '(5)}))
-      (is (= (vm/-step (vm/->LSET 0 2) state)
+      (is (= (vm/-step (vm/->LSET 0 2 'x) state)
              {:env (util/env [0 1 4] [2 3]) :stack '(5)}))
-      (is (= (vm/-step (vm/->LSET 1 0) state)
+      (is (= (vm/-step (vm/->LSET 1 0 'x) state)
              {:env (util/env [0 1] [4 3]) :stack '(5)}))
-      (is (= (vm/-step (vm/->LSET 1 1) state)
+      (is (= (vm/-step (vm/->LSET 1 1 'x) state)
              {:env (util/env [0 1] [2 4]) :stack '(5)})))))
 
 (deftest LSET-step-02
@@ -69,9 +69,9 @@
     (let [env (util/env [0 1] [2 3])
           state {:env env :stack '(4 5)}]
       (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
-                   (vm/-step (vm/->LSET 2 0) state)))
+                   (vm/-step (vm/->LSET 2 0 'x) state)))
       (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
-                   (vm/-step (vm/->LSET 0 3) state)))))
+                   (vm/-step (vm/->LSET 0 3 'x) state)))))
 
 (deftest GVAR-step-01
   (testing "GVAR"
