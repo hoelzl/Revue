@@ -246,6 +246,8 @@
 (defrecord POP []
   VmInst
   (-step [this vm-state]
+    (assert (not (empty? (:stack vm-state)))
+            "Cannot pop an empty stack.")
     (update-in vm-state [:stack] rest))
   VmShow
   (-opcode [this]

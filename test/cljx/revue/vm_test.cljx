@@ -96,7 +96,7 @@
            {:stack '(2 3)}))
     (is (= (vm/-step (vm/->POP) {:stack '(1)})
            {:stack '()}))
-    (is (thrown? #+clj java.lang.IllegalStateException #+cljs js/Error
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (vm/-step (vm/->POP) {:stack '()})))))
 
 (deftest CONST-step-01
