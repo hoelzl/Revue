@@ -43,7 +43,7 @@
           (util/error "Bad arity for bytecode instruction " opcode))))
 
 (defn gen-seq [& insts]
-  (doall (apply concat insts)))
+  (vec (apply concat insts)))
 
 (def label-counter (atom 0))
 
@@ -231,7 +231,7 @@
     (gen-seq
      (compile val env true true)
      (gen-set var env form)
-     (when-not val? (gen 'POP))
+     ;; (when-not val? (gen 'POP))
      (when-not more? (gen-return)))))
 
 (defmethod compile ::sequence [form env val? more?]
@@ -290,15 +290,23 @@
 (defmethod compile ::function-application
   [[f & args :as form] env val? more?]
   (binding [*current-form* form]
-    (let [prim (vm/primitive? f env (count args))]
+    (let [prim (vm/primitive? f env (count args))
+          op (vm/operator? f env)]
       (cond
        ;; Invoking a primitive function
        prim
        (if (and (not val?) (not (:side-effects prim)))
          (compile-sequence args env false more?)
          (gen-seq (compile-list args env)
+                  (gen 'PRIM prim)
                   (when-not val? (gen 'POP))
                   (when-not more? (gen-return))))
+       ;; Invoking an operator
+       op
+       (gen-seq (compile-list args env)
+                (gen 'OP f (count args))
+                (when-not val? (gen 'POP))
+                (when-not more? (gen-return)))
        ;; ((lambda () body)) => (begin body)
        ;; NOTE: lambda is hardcoded here!
        #_
@@ -310,7 +318,8 @@
          (assert (empty? args)
                  "Calling parameterless function with arguments.")
          (compile-sequence (drop 2 f) env val? more?))
-       ;; Further work: save continuation point
+       ;; We have to do more work after calling the function: save a
+       ;; continuation point
        more?
        (let [K (gen-label 'K)]
          (gen-seq (gen 'SAVE K)
@@ -325,32 +334,44 @@
                 (compile f env true true)
                 (gen 'CALLJ (count args)))))))
 
-(defn compiler [form & {:keys [env val? more?]
-                        :or {env (util/env) val? true more? false}}]
+(defn compiler [form & {:keys [env assemble?]
+                        :or {env (util/env) assemble? true}}]
   (reset! label-counter 0)
   (try
-    (compile form env val? more?)
+    (let [bytecode (compile-lambda 'top-level () (list form) env)]
+      (if assemble?
+        (vm/assemble bytecode)
+        bytecode))
     (catch #+clj java.lang.Exception #+cljs js/Error e
            :compiler-error)))
 
-(defn compile-all [forms & {:keys [env val? more?]
-                            :or {env (util/env) val? true more? false}}]
-  (reset! label-counter 0)
+(defn compile-all [forms & {:keys [env assemble?]
+                            :or {env (util/env) assemble? true}}]
   (try
-    (map #(compile %1 env val? more?) forms)
+    (let [bytecode (compile-lambda 'top-level () forms env)]
+      (if assemble?
+        (vm/assemble bytecode)
+        bytecode))
     (catch #+clj java.lang.Exception #+cljs js/Error e
            :compiler-error)))
 
-(defn comp-show [form & {:keys [env val? more?]
-                         :or {env (util/env) val? true more? false}}]
-  (vm/show (compiler form :env env :val? val? :more? more?)))
+(defn comp-show [form & {:keys [env assemble?]
+                         :or {env (util/env) assemble? false}}]
+  (vm/show (:code (compiler form :env env :assemble? assemble?))))
 
-(defn comp-show-all [form & {:keys [env val? more?]
-                             :or {env (util/env) val? true more? false}}]
-  (let [results (compile-all form :env env :val? val? :more? more?)]
-    (if (sequential? results)
-      (map vm/show results)
-      (println "Compiler error"))))
+(defn comp-show-all [form & {:keys [env assemble?]
+                             :or {env (util/env) assemble? false}}]
+  (let [result (compile-all form :env env :assemble? assemble?)]
+    (vm/show (:code result))))
+
+(defn run [& forms]
+  (let [prog (compile-all forms :assemble? true)]
+    (vm/vm prog)))
+
+(defn result [& forms]
+  (let [prog (compile-all forms :assemble? true)]
+    (vm/result prog)))
+
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

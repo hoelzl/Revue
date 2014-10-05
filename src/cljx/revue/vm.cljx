@@ -69,6 +69,13 @@
      :n-args 0
      :stopped? false}))
 
+(defn code [vm-state]
+  (:code vm-state))
+
+(defn current-instruction [vm-state]
+  (println "current-instruction:" (:pc vm-state))
+  (show (code vm-state))
+  (get (code vm-state) (:pc vm-state)))
 
 ;;; Operators
 ;;; =========
@@ -77,24 +84,30 @@
 
 (def operator-table (atom {}))
 
-#_
+(defn operator? [op env]
+  (get @operator-table op false))
+
 (defn define-operator
+  ([name n-args code]
+     (define-operator name n-args n-args code))
   ([name min-args max-args code]
-     (swap! operator-table)))
+     (swap! operator-table assoc name {:clj-fun code
+                                       :min-args min-args
+                                       :max-args max-args})))
 
-;;; The Assembler (Well, Not Yet)
-;;; =============================
+(define-operator '+ 0 :inf +)
+(define-operator '- 0 :inf -)
+(define-operator '* 0 :inf *)
+(define-operator '/ 1 :inf /)
+(define-operator '< 2 :inf <)
+(define-operator '<= 2 :inf <=)
+(define-operator '> 2 :inf >)
+(define-operator '>= 2 :inf >=)
+(define-operator 'print 0 :inf print)
+(define-operator 'println 0 :inf println)
 
-;;; We need to have the VM instructions available for the assembler,
-;;; thus we define the `assemble` function after the VM instructions.
-;;; However, for some instructions it is convenient to have `assemble`
-;;; available (e.g., for `CC`), so we provide a forward declaration
-;;; here.
-
-(declare assemble)
-
-;;; VM Instructions
-;;; ===============
+;;; VM Primitives
+;;; =============
 
 (defn primitive? [form env n-args]
   ;;; TODO: Implement this!
@@ -110,12 +123,31 @@
    :always? always?
    :side-effects? side-effects?})
 
+;;; The Assembler (Well, Not Yet)
+;;; =============================
+
+;;; We need to have the VM instructions available for the assembler,
+;;; thus we define the `assemble` function after the VM instructions.
+;;; However, for some instructions it is convenient to have `assemble`
+;;; available (e.g., for `CC`), so we provide a forward declaration
+;;; here.
+
+(declare assemble)
+
+;;; VM Instructions
+;;; ===============
+
 (defprotocol VmInst
   "Each instruction of the VM is represented as a datatype that
   implements the `VmInst` protocol.  The function `-step` executes the
   instruction starting in state `vm-state` and returns a new state of
   the VM."
   (-step [this vm-state]))
+
+(defprotocol ResolveLabel
+  "Implemented by instructions that take labels as arguments and need
+  to resolve them during assembly."
+  (-resolve-label [this label-indices]))
 
 (defprotocol VmShow
   "The function `-opcode` returns the opcode of the instruction or the
@@ -136,7 +168,7 @@
 (defrecord Label [name]
   VmShow
   (-opcode [this]
-    (:name this))
+    'Label)
   (-show [this indent]
     (print (str (:name this) ":"))))
 
@@ -169,8 +201,8 @@
     (let [{:keys [env stack]} vm-state
           {:keys [frame slot]} this]
       (assoc vm-state
-        :env (assoc-in env [frame slot] (peek stack))
-        :stack (pop stack))))
+        :env (assoc-in env [frame slot] (first stack))
+        :stack (rest stack))))
   VmShow
   (-opcode [this]
     'LSET)
@@ -194,14 +226,13 @@
   (-show [this indent]
     (println (util/indent indent) (-opcode this) (:name this))))
 
-;;; `GSET` pops a value off the stack and stores it in global variable
-;;; `name`.
+;;; `GSET` stores the topmost value on the stack in global variable
+;;; `name`.  It does not modify the stack.
 (defrecord GSET [name]
   VmInst
   (-step [this vm-state]
     (assoc vm-state
-      :global-env (assoc (:global-env vm-state) name (peek (:stack vm-state)))
-      :stack (pop (:stack vm-state))))
+      :global-env (assoc (:global-env vm-state) name (first (:stack vm-state)))))
   VmShow
   (-opcode [this]
     'GSET)
@@ -212,7 +243,7 @@
 (defrecord POP []
   VmInst
   (-step [this vm-state]
-    (update-in vm-state [:stack] pop))
+    (update-in vm-state [:stack] rest))
   VmShow
   (-opcode [this]
     'POP)
@@ -237,12 +268,27 @@
   (-show [this indent]
     (println (util/indent indent) (-opcode this) (:value this))))
 
+(defn --resolve-label [this label-indices]
+  (let [target (:target this)]
+    (if-let [label-name (:name target)]
+      (let [addr (get label-indices label-name)]
+        (assert addr (str "No address for label " (:name (:target this))
+                          " in " label-indices))
+        (assoc this :target addr))
+      ;; The target address should already be resolved
+      (do
+        (assert (integer? target) (str "Invalid jump target:" target))
+        this))))
+
 ;;; `JUMP` jumps unconditially to `target` which is the index of the
 ;;; pc in the current function (a non-negative integer).
 (defrecord JUMP [target]
   VmInst
   (-step [this vm-state]
     (assoc vm-state :pc (:target this)))
+  ResolveLabel
+  (-resolve-label [this label-indices]
+    (--resolve-label this label-indices))
   VmShow
   (-opcode [this]
     'JUMP)
@@ -259,13 +305,16 @@
   VmInst
   (-step [this vm-state]
     (let [stack (:stack vm-state)
-          value (peek stack)]
+          value (first stack)]
       (if (not (mem/->clojure value))
         (assoc vm-state
           :pc (:target this)
-          :stack (pop stack))
+          :stack (rest stack))
         (assoc vm-state
-          :stack (pop stack)))))
+          :stack (rest stack)))))
+  ResolveLabel
+  (-resolve-label [this label-indices]
+    (--resolve-label this label-indices))
   VmShow
   (-opcode [this]
     'FJUMP)
@@ -282,13 +331,16 @@
   VmInst
   (-step [this vm-state]
     (let [stack (:stack vm-state)
-          value (peek stack)]
+          value (first stack)]
       (if (mem/->clojure value)
         (assoc vm-state
           :pc (:target this)
-          :stack (pop stack))
+          :stack (rest stack))
         (assoc vm-state
-          :stack (pop stack)))))
+          :stack (rest stack)))))
+  ResolveLabel
+  (-resolve-label [this label-indices]
+    (--resolve-label this label-indices))
   VmShow
   (-opcode [this]
     'TJUMP)
@@ -310,6 +362,9 @@
   (-step [this vm-state]
     (let [ret-addr (make-return-address (assoc vm-state :pc (:target this)))]
       (update-in vm-state [:stack] conj ret-addr)))
+  ResolveLabel
+  (-resolve-label [this label-indices]
+    (--resolve-label this label-indices))
   VmShow
   (-opcode [this]
     'SAVE)
@@ -330,12 +385,22 @@
     (let [stack (:stack vm-state)
           return-address (second stack)
           fun (:fun return-address)]
-      (assoc vm-state
-        :stack (cons (first stack) (list* (drop 2 stack)))
-        :fun fun
-        :code (:code fun)
-        :env (:env return-address)
-        :pc (:pc return-address))))
+      (cond
+       (= (:type return-address) :return-address)
+       (assoc vm-state
+         :stack (cons (first stack) (list* (drop 2 stack)))
+         :fun fun
+         :code (:code fun)
+         :env (:env return-address)
+         :pc (:pc return-address))
+       (= (:fun this) 'top-level)
+       (assoc vm-state
+         :stopped? true
+         :reason "Returning to top level.")
+       :else
+        (assoc vm-state
+          :stopped? true
+          :reason (str "Returning to invalid address.")))))
   VmShow
   (-opcode [this]
     'RETURN)
@@ -459,6 +524,9 @@
 ;;; functions are better implemented as operators (see `OP` below); in
 ;;; particular user-visible functionality should never be implemented
 ;;; as primitive.
+
+;;; TODO: Should not contain clojure code but a name, referring to the
+;;; prim-table...
 (defrecord PRIM [clj-code]
   VmInst
   (-step [this vm-state]
@@ -479,7 +547,7 @@
 (defrecord SET-CC []
   VmInst
   (-step [this vm-state]
-    (update-in vm-state [:stack] peek))
+    (update-in vm-state [:stack] first))
   VmShow
   (-opcode [this]
     'SET-CC)
@@ -530,22 +598,24 @@
 ;;; their result as Clojure data structure; `OP` performs the
 ;;; necessary conversions from and to the VM representation.
 ;;; TODO: argument checks, etc.
-(defrecord OP [n-args clj-code]
+(defrecord OP [name n-args]
   VmInst
   (-step [this vm-state]
     (let [stack (:stack vm-state)
           [raw-args new-stack] (split-at n-args stack)
           args (mem/->clojure (vec raw-args))
-          clj-result (apply (:clj-code this) args)
+          clj-result (apply (:clj-fun (get @operator-table (:name this)))
+                            args)
           [result new-store] (mem/->vm clj-result (:store vm-state))]
       (assoc vm-state
-        :stack (conj (vec new-stack) result)
+        :stack (conj new-stack result)
         :store new-store)))
   VmShow
   (-opcode [this]
     'OP)
   (-show [this indent]
-    (println (util/indent indent) (-opcode this) (:n-args this))))
+    (println (util/indent indent) (-opcode this)
+             (:name this) (:n-args this))))
 
 (defn opcode [inst]
   "Return the opcode of `inst`"
@@ -556,12 +626,17 @@
   stopped, i.e., `(:stopped? vm-state)` is true, then return the state
   unchanged."
   [vm-state]
-  (if (:stopped? vm-state)
-    vm-state
-    (let [instr (nth (:code vm-state) (:pc vm-state))]
-      (-step instr (assoc vm-state
-                     :pc (inc (:pc vm-state))
-                     :instr instr)))))
+  (cond
+   (:stopped? vm-state)
+   vm-state
+   :else
+   (if-let [instr (current-instruction vm-state)]
+     (-step instr (assoc vm-state
+                    :pc (inc (:pc vm-state))
+                    :instr instr))
+     (assoc vm-state
+       :stopped? true
+       :reason "Trying to access invalid code address."))))
 
 
 ;;; Printing instructions
@@ -608,7 +683,7 @@
    'OP      {:constructor ->OP     :arity 2 :source true}})
 
 (defn assemble-inst [inst]
-  (if (satisfies? VmInst inst)
+  (if (satisfies? VmShow inst)
     inst
     (let [[opcode & args] inst]
       (if-let [opcode-descr (get opcodes opcode)]
@@ -622,21 +697,55 @@
                      " arguments, but wants " (:arity opcode-descr)))
         (util/error "Unknown opcode " opcode " in " inst ".")))))
 
+(defn find-label-indices [insts]
+  (loop [index 0
+         insts insts
+         result {}]
+    (if-let [inst (first insts)]
+      (if (= (opcode inst) 'Label)
+        (recur index (rest insts) (assoc result (:name inst) index))
+        (recur (inc index) (rest insts) result))
+      result)))
+
+(defn resolve-label-indices [label-indices]
+  (fn [inst]
+    (cond
+     (satisfies? ResolveLabel inst)
+     (do
+       (-resolve-label inst label-indices))
+     (= (opcode inst) 'Label)
+     nil
+     :else
+     inst)))
+
 (defn assemble
   "Assemble a sequence of instructions from Clojure lists into
   `VmInst` data structures."
-  [instructions]
-  ;; TODO: Need to resolve labels for jumps
-  (map assemble-inst instructions))
+  [{:keys [code] :as bytecode}]
+  (let [pass-1 (map assemble-inst code)
+        label-indices (find-label-indices pass-1)
+        new-code (vec (keep (resolve-label-indices label-indices)
+                            pass-1))]
+    (assoc bytecode :code new-code :label-indices label-indices)))
 
 ;;; The VM Proper
 ;;; =============
 
-
 (defn vm
   "Run the virtual machine."
   [prog]
-  (println "Running the VM on " prog))
+  (println "Running the VM on " prog)
+  (iterate step (initial-state prog)))
+
+(defn active-frames [prog]
+  (take-while (complement :stopped?) (vm prog)))
+
+(defn stopped-frame [prog]
+  (first (drop-while (complement :stopped?) (vm prog))))
+
+(defn result [prog]
+  (first (:stack (stopped-frame prog))))
+
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

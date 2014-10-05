@@ -85,9 +85,9 @@
   (testing "GSET"
     (let [state {:global-env {'foo 123} :stack '(1 2)}]
       (is (= (vm/-step (vm/->GSET 'foo) state)
-             {:global-env {'foo 1} :stack '(2)}))
+             {:global-env {'foo 1} :stack '(1 2)}))
       (is (= (vm/-step (vm/->GSET 'bar) state)
-             {:global-env {'foo 123 'bar 1} :stack '(2)})))))
+             {:global-env {'foo 123 'bar 1} :stack '(1 2)})))))
 
 
 (deftest POP-step-01

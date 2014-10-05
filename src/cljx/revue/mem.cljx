@@ -99,7 +99,10 @@
   #+clj java.lang.String #+cljs string
   (-->clojure [this store] this)
   #+clj clojure.lang.PersistentList$EmptyList #+cljs cljs.core/EmptyList
-  (-->clojure [this store] ()))
+  (-->clojure [this store] ())
+  #+clj clojure.lang.PersistentVector #+cljs cljs.core/PersistentVector
+  (-->clojure [this store]
+    (mapv ->clojure this)))
 
 (defprotocol HeapObject
   "Datatypes that are stored on the heap implement the `HeapObject`
@@ -284,6 +287,8 @@
           vector))
 
 (extend-protocol ExpressedData
+  nil
+  (-->vm [this store] [this store])
   #+clj java.lang.Boolean #+cljs boolean
   (-->vm [this store] [this store])
   #+clj java.lang.Number #+cljs number
