@@ -109,6 +109,12 @@
            (singleton? exps) (first exps)
            :else (cons op exps))))
 
+;;; Utilities for Strings
+;;; =====================
+
+(defn indent [n]
+  (clojure.string/join (repeat n "\t")))
+
 ;;; Utilities for the VM representation
 ;;; ===================================
 

@@ -35,14 +35,15 @@
     (assert opcode-descr
             (str "Unknown bytecode instruction: " opcode))
     (cond (= (:arity opcode-descr) (count args))
-          [(assoc (apply (:constructor opcode-descr) args)
-              :source (current-source)
-              :function *current-function*)]
+          (do
+            [(assoc (apply (:constructor opcode-descr) args)
+               :source (current-source)
+               :function *current-function*)])
           :else
           (util/error "Bad arity for bytecode instruction " opcode))))
 
 (defn gen-seq [& insts]
-  (apply concat insts))
+  (doall (apply concat insts)))
 
 (def label-counter (atom 0))
 
@@ -50,8 +51,7 @@
   ([]
      (gen-label "L"))
   ([prefix]
-     {:type :label
-      :name (symbol (str prefix (swap! label-counter inc)))}))
+     (vm/->Label (symbol (str prefix (swap! label-counter inc))))))
 
 (defn gen-var [var env]
   (binding [*current-form* var]
@@ -117,12 +117,66 @@
      (compile-lambda '%anonymous-lambda args body env))
   ([name args body env]
      ;; TODO: Need to invoke the assembler
-     (vm/make-fun :env env :args args
-                  :code (gen-seq (gen-args name args 0)
-                                 (compile-sequence
-                                  body
-                                  (conj env (vec args))
-                                  true false)))))
+     (binding [*current-function* name]
+       (vm/make-fun :env env :args args
+                    :code (gen-seq (gen-args name args 0)
+                                   (compile-sequence
+                                    body
+                                    (conj env (vec args))
+                                    true false))))))
+
+;;; Support for macros
+;;; ==================
+
+(def macro-environment (atom {}))
+
+(defn riley-macro? [op env]
+  (get @macro-environment op false))
+
+(defn expand-riley-macro [op args env]
+  (let [expander (get @macro-environment op)]
+    (assert expander (str op " has no macro expander."))
+    (expander args env)))
+
+(defn riley-macroexpand-1 [[op & args] & [env]]
+  (expand-riley-macro op args env))
+
+(defn riley-macroexpand [[op & args] & [env]]
+  (let [result (expand-riley-macro op args env)]
+    (if (riley-macro? (first result) env)
+      (recur result env)
+      result)))
+
+(defn define-riley-macro [name expander]
+  (swap! macro-environment assoc name expander))
+
+(define-riley-macro 'define
+  (fn [[name & forms] env]
+    (if (symbol? name)
+      (do
+        (assert (util/singleton? forms))
+        (list 'set! name (first forms)))
+      (list 'set! (first name)
+            (list 'lambda (first name) (rest name)
+                  (util/maybe-add 'begin forms nil))))))
+
+(define-riley-macro 'letrec
+  (fn [[bindings & body] env]
+    (list* 'let (map #(list (first %) nil) bindings)
+           (list* 'begin
+                  (map #(list 'set! (first %) (second %)) bindings))
+           body)))
+
+(define-riley-macro 'let
+  (fn [[bindings & body] env]
+    (if (symbol? bindings)
+      (let [[name bindings body] [bindings (first body) (rest body)]]
+        (list 'letrec (list (list name
+                                  (list* 'lambda (map first bindings) body)))
+              (list* name (map second bindings))))
+      (list* (list* 'lambda 'let (map first bindings)
+                    body)
+             (map second bindings)))))
 
 ;;; The Main Function
 ;;; =================
@@ -142,7 +196,9 @@
      begin ::sequence
      if ::conditional
      lambda ::closure
-     ::function-application)))
+     (if (riley-macro? (first form) env)
+       ::macro-application
+       ::function-application))))
 
 (defmulti compile
   "Compile Riley code into bytecode instructions for the Revue VM."
@@ -215,12 +271,21 @@
                    (if more? (list L2)))))))))
 
 (defmethod compile ::closure
-  [[_ args & body :as form] env val? more?]
-  (binding [*current-form* form
-            *current-function* form]
-    (let [f (compile-lambda args body env)]
-      (gen-seq (gen 'FUN f)
-               (when-not more? (gen-return))))))
+  [[_ args-or-name & body-or-args-and-body :as form] env val? more?]
+  (let [[name args body] (if (symbol? args-or-name)
+                           [args-or-name
+                            (first body-or-args-and-body)
+                            (rest body-or-args-and-body)]
+                           ['%anonymous-lambda args-or-name body-or-args-and-body])]
+    (binding [*current-form* form]
+      (let [f (compile-lambda name args body env)]
+        (gen-seq (gen 'FUN f)
+                 (when-not more? (gen-return)))))))
+
+(defmethod compile ::macro-application
+  [[f & args :as form] env val? more?]
+  (binding [*current-form* form]
+    (compile (expand-riley-macro f args env) env val? more?)))
 
 (defmethod compile ::function-application
   [[f & args :as form] env val? more?]
@@ -236,7 +301,11 @@
                   (when-not more? (gen-return))))
        ;; ((lambda () body)) => (begin body)
        ;; NOTE: lambda is hardcoded here!
-       (and (sequential? f) (= (first f) 'lambda) (empty? (second f)))
+       #_
+       (and (sequential? f) (= (first f) 'lambda)
+            (or (and (sequential? (second f)) (empty? (second f)))
+                (and (symbol? (second f) (empty? (nth f 3))))))
+       #_
        (do
          (assert (empty? args)
                  "Calling parameterless function with arguments.")
@@ -255,6 +324,33 @@
        (gen-seq (compile-list args env)
                 (compile f env true true)
                 (gen 'CALLJ (count args)))))))
+
+(defn compiler [form & {:keys [env val? more?]
+                        :or {env (util/env) val? true more? false}}]
+  (reset! label-counter 0)
+  (try
+    (compile form env val? more?)
+    (catch #+clj java.lang.Exception #+cljs js/Error e
+           :compiler-error)))
+
+(defn compile-all [forms & {:keys [env val? more?]
+                            :or {env (util/env) val? true more? false}}]
+  (reset! label-counter 0)
+  (try
+    (map #(compile %1 env val? more?) forms)
+    (catch #+clj java.lang.Exception #+cljs js/Error e
+           :compiler-error)))
+
+(defn comp-show [form & {:keys [env val? more?]
+                         :or {env (util/env) val? true more? false}}]
+  (vm/show (compiler form :env env :val? val? :more? more?)))
+
+(defn comp-show-all [form & {:keys [env val? more?]
+                             :or {env (util/env) val? true more? false}}]
+  (let [results (compile-all form :env env :val? val? :more? more?)]
+    (if (sequential? results)
+      (map vm/show results)
+      (println "Compiler error"))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

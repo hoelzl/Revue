@@ -69,6 +69,19 @@
      :n-args 0
      :stopped? false}))
 
+
+;;; Operators
+;;; =========
+
+;;; Operators are functions that are implemented in Clojure.
+
+(def operator-table (atom {}))
+
+#_
+(defn define-operator
+  ([name min-args max-args code]
+     (swap! operator-table)))
+
 ;;; The Assembler (Well, Not Yet)
 ;;; =============================
 
@@ -102,8 +115,30 @@
   implements the `VmInst` protocol.  The function `-step` executes the
   instruction starting in state `vm-state` and returns a new state of
   the VM."
-  (-step [this vm-state])
-  (-opcode [this]))
+  (-step [this vm-state]))
+
+(defprotocol VmShow
+  "The function `-opcode` returns the opcode of the instruction or the
+  name of a label.  The function `-show` prints a human readable
+  version of an instruction or Label."
+  (-opcode [this])
+  (-show [this indent]))
+
+;;; The variable `*indent*` is dynamically bound to determine the
+;;; indentation of nested instructions.
+
+(def ^:dynamic *indent* 1)
+
+;;; The function `show` is a wrapper around `-show` that takes care of
+;;; types that don't implement `VmShow`.
+(declare show)
+
+(defrecord Label [name]
+  VmShow
+  (-opcode [this]
+    (:name this))
+  (-show [this indent]
+    (print (str (:name this) ":"))))
 
 ;;; `LVAR` pushes the value of the local variable in environment
 ;;; location `[frame slot]` onto the stack.  `source` is the source
@@ -114,8 +149,13 @@
   (-step [this vm-state]
     (assoc vm-state
       :stack (conj (:stack vm-state) (env-value vm-state this))))
+  VmShow
   (-opcode [this]
-    'LVAR))
+    'LVAR)
+  (-show [this indent]
+    (println (util/indent indent)
+             (-opcode this)
+             (:frame this) (:slot this) ";" (:name this))))
 
 ;;; `LSET` pops a value off the stack and puts it into environment
 ;;; location `[frame slot]`.  `name` is the name of the variable in
@@ -131,8 +171,13 @@
       (assoc vm-state
         :env (assoc-in env [frame slot] (peek stack))
         :stack (pop stack))))
+  VmShow
   (-opcode [this]
-    'LSET))
+    'LSET)
+  (-show [this indent]
+    (println (util/indent indent)
+             (-opcode this)
+             (:frame this) (:slot this) ";" (:name this))))
 
 ;;; `GVAR` pushes the value of the global variable `name` onto the
 ;;; stack.  If `name` is not defined in the global environment, `nil`
@@ -143,8 +188,11 @@
     (assoc vm-state
       :stack (conj (:stack vm-state)
                    (get (:global-env vm-state) (:name this)))))
+  VmShow
   (-opcode [this]
-    'GVAR))
+    'GVAR)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this) (:name this))))
 
 ;;; `GSET` pops a value off the stack and stores it in global variable
 ;;; `name`.
@@ -154,16 +202,22 @@
     (assoc vm-state
       :global-env (assoc (:global-env vm-state) name (peek (:stack vm-state)))
       :stack (pop (:stack vm-state))))
+  VmShow
   (-opcode [this]
-    'GSET))
+    'GSET)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this) (:name this))))
 
 ;;; `POP` pops a value off the stack and discards it.
 (defrecord POP []
   VmInst
   (-step [this vm-state]
     (update-in vm-state [:stack] pop))
+  VmShow
   (-opcode [this]
-    'POP))
+    'POP)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this))))
 
 ;;; `CONST` pushes a constant value onto the stack.  The `value`
 ;;; parameter is a Clojure value that is converted to VM
@@ -177,8 +231,11 @@
       (assoc vm-state
         :stack (conj stack value)
         :store new-store)))
+  VmShow
   (-opcode [this]
-    'CONST))
+    'CONST)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this) (:value this))))
 
 ;;; `JUMP` jumps unconditially to `target` which is the index of the
 ;;; pc in the current function (a non-negative integer).
@@ -186,8 +243,15 @@
   VmInst
   (-step [this vm-state]
     (assoc vm-state :pc (:target this)))
+  VmShow
   (-opcode [this]
-    'JUMP))
+    'JUMP)
+  (-show [this indent]
+    (println (util/indent indent)
+             (-opcode this)
+             (if (number? (:target this))
+               (:target this)
+               (:name (:target this))))))
 
 ;;; `FJUMP` pops a value off the stack and jumps to `target` if the
 ;;; value is falsy.
@@ -202,8 +266,15 @@
           :stack (pop stack))
         (assoc vm-state
           :stack (pop stack)))))
+  VmShow
   (-opcode [this]
-    'FJUMP))
+    'FJUMP)
+  (-show [this indent]
+    (println (util/indent indent)
+             (-opcode this)
+             (if (number? (:target this))
+               (:target this)
+               (:name (:target this))))))
 
 ;;; `TJUMP` pops a value off the stack and jumps to `target` when the
 ;;; value is truthy.
@@ -218,8 +289,15 @@
           :stack (pop stack))
         (assoc vm-state
           :stack (pop stack)))))
+  VmShow
   (-opcode [this]
-    'TJUMP))
+    'TJUMP)
+  (-show [this indent]
+    (println (util/indent indent)
+             (-opcode this)
+             (if (number? (:target this))
+               (:target this)
+               (:name (:target this))))))
 
 ;;; `SAVE` creates a return address from the current function, program
 ;;; counter and environment and pushes it on the stack.  Note that
@@ -232,8 +310,15 @@
   (-step [this vm-state]
     (let [ret-addr (make-return-address (assoc vm-state :pc (:target this)))]
       (update-in vm-state [:stack] conj ret-addr)))
+  VmShow
   (-opcode [this]
-    'SAVE))
+    'SAVE)
+  (-show [this indent]
+    (println (util/indent indent)
+             (-opcode this)
+             (if (number? (:target this))
+               (:target this)
+               (:name (:target this))))))
 
 ;;; `RETURN` returns from a function.  To this end it removes the
 ;;; *second* element from the stack (which is the return address to
@@ -251,8 +336,12 @@
         :code (:code fun)
         :env (:env return-address)
         :pc (:pc return-address))))
+  VmShow
   (-opcode [this]
-    'RETURN))
+    'RETURN)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this)
+             (if (symbol? (:fun this)) (:fun this) ""))))
 
 ;;; `CALLJ` calls a function by jumping to its entry point.  To this
 ;;; end, it pops the function that should be invoked from the stack
@@ -269,8 +358,11 @@
         :env (:env fun)
         :pc 0
         :n-args (:n-args this))))
+  VmShow
   (-opcode [this]
-    'CALLJ))
+    'CALLJ)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this) (:n-args this))))
 
 (defn move-args-from-stack-to-env
   "If `n-rest-args` is falsy, pop `n-args` arguments from the stack
@@ -309,8 +401,12 @@
           :reason (str "Function " name " called with " (:n-args vm-state)
                        " argument(s), but wants exactly " n-args "."))
         (move-args-from-stack-to-env n-args vm-state))))
+  VmShow
   (-opcode [this]
-    'ARGS))
+    'ARGS)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this) (:n-args this)
+             (if (symbol? (:name this)) (:name this) ""))))
 
 ;;; `ARGS*` is the first bytecode instruction executed by functions
 ;;; with variable arity.  It checks that the number of required
@@ -330,8 +426,12 @@
           :reason (str "Function " name " called with " supplied-args
                        " argument(s), but wants at least " n-args "."))
         (move-args-from-stack-to-env n-args vm-state (- supplied-args n-args)))))
+  VmShow
   (-opcode [this]
-    'ARGS*))
+    'ARGS*)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this) (:n-args this)
+             (if (symbol? (:name this)) (:name this) ""))))
 
 ;;; `FUN` creates a new closure.  It takes the bytecode-compiled
 ;;; `function` and associates it with the current environment.
@@ -340,8 +440,13 @@
   (-step [this vm-state]
     (update-in vm-state [:stack] conj
                (assoc fun :env (:env vm-state))))
+  VmShow
   (-opcode [this]
-    'FUN))
+    'FUN)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this))
+    (binding [*indent* (inc *indent*)]
+      (show (:code (:fun this))))))
 
 ;;; `PRIM` invokes a primitive instruction.  Primitives are
 ;;; implemented as Clojure functions that receive the store as first
@@ -363,8 +468,11 @@
       (assoc vm-state
         :stack (conj new-stack result)
         :store new-store)))
+  VmShow
   (-opcode [this]
-    'PRIM))
+    'PRIM)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this))))
 
 ;;; `SET-CC` pops a value off the stack and uses this value as the new
 ;;; continuation.
@@ -372,8 +480,11 @@
   VmInst
   (-step [this vm-state]
     (update-in vm-state [:stack] peek))
+  VmShow
   (-opcode [this]
-    'SET-CC))
+    'SET-CC)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this))))
 
 ;;; `CC` pushes a function onto the stack that captures the current
 ;;; environment and restores it when it is invoked.  TODO: improve
@@ -390,8 +501,11 @@
                       :env (env (:stack vm-state))
                       :name '%cc
                       :args '[fun])))
+  VmShow
   (-opcode [this]
-    'CC))
+    'CC)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this))))
 
 
 ;;; `HALT` stops the execution of the VM; if `step` is invoked after
@@ -405,8 +519,11 @@
     (assoc vm-state
       :stopped? true
       :reason "Program terminated."))
+  VmShow
   (-opcode [this]
-    'HALT))
+    'HALT)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this))))
 
 ;;; `OP` invokes an operator defined in Clojure code.  These operators
 ;;; receive their arguments as Clojure data structures and return
@@ -424,8 +541,11 @@
       (assoc vm-state
         :stack (conj (vec new-stack) result)
         :store new-store)))
+  VmShow
   (-opcode [this]
-    'OP))
+    'OP)
+  (-show [this indent]
+    (println (util/indent indent) (-opcode this) (:n-args this))))
 
 (defn opcode [inst]
   "Return the opcode of `inst`"
@@ -443,6 +563,20 @@
                      :pc (inc (:pc vm-state))
                      :instr instr)))))
 
+
+;;; Printing instructions
+;;; =====================
+
+(defn show [thing & [indent]]
+  (let [indent (or indent *indent*)]
+    (cond
+     (satisfies? VmShow thing)
+     (-show thing indent)
+     (sequential? thing)
+     (dorun (map #(show %1 indent) thing))
+     :else
+     (println (util/indent indent) thing)))
+  thing)
 
 ;;; The Assembler
 ;;; =============
