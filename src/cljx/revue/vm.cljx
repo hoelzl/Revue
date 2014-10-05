@@ -72,6 +72,13 @@
 (defn code [vm-state]
   (:code vm-state))
 
+
+;;; The function `show` displays code is a nicely formatted manner.
+;;; It is a wrapper around `-show` that takes care of types that don't
+;;; implement `VmShow`.  We need it here to debug errors in the
+;;; selection of the current instruction.
+(declare show)
+
 (defn current-instruction [vm-state]
   (println "current-instruction:" (:pc vm-state))
   (show (code vm-state))
@@ -160,10 +167,6 @@
 ;;; indentation of nested instructions.
 
 (def ^:dynamic *indent* 1)
-
-;;; The function `show` is a wrapper around `-show` that takes care of
-;;; types that don't implement `VmShow`.
-(declare show)
 
 (defrecord Label [name]
   VmShow

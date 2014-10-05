@@ -137,8 +137,8 @@
   (test-gen 'HALT [] {}))
 
 (deftest gen-OP
-  (test-gen 'OP [0 println] {:n-args 0 :clj-code println})
-  (test-gen 'OP [3 println] {:n-args 3 :clj-code println}))
+  (test-gen 'OP ['println 0] {:name 'println :n-args 0})
+  (test-gen 'OP ['println 3] {:name 'println :n-args 3}))
 
 (defn add-unknown-source-info [inst]
   (assoc inst :function '%unknown-source :source '%unknown-source))
@@ -155,9 +155,9 @@
 (deftest gen-label
   (reset! riley/label-counter 0)
   ;; Test that the counter is actually incremented
-  (is (= (riley/gen-label) {:type :label :name 'L1}))
-  (is (= (riley/gen-label) {:type :label :name 'L2}))
-  (is (= (riley/gen-label) {:type :label :name 'L3})))
+  (is (= (riley/gen-label) (vm/->Label 'L1)))
+  (is (= (riley/gen-label) (vm/->Label 'L2)))
+  (is (= (riley/gen-label) (vm/->Label 'L3))))
 
 (deftest gen-var
   (let [env (util/env '[x y] '[a b c])]
