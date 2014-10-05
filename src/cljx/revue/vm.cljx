@@ -80,8 +80,8 @@
 (declare show)
 
 (defn current-instruction [vm-state]
-  (println "current-instruction:" (:pc vm-state))
-  (show (code vm-state))
+  #_(println "current-instruction:" (:pc vm-state) (get (code vm-state) (:pc vm-state)))
+  #_(show (code vm-state))
   (get (code vm-state) (:pc vm-state)))
 
 ;;; Operators
@@ -419,13 +419,17 @@
   VmInst
   (-step [this vm-state]
     (let [[fun & new-stack] (:stack vm-state)]
-      (assoc vm-state
-        :stack (vec new-stack)
-        :fun fun
-        :code (:code fun)
-        :env (:env fun)
-        :pc 0
-        :n-args (:n-args this))))
+      (if fun
+        (assoc vm-state
+          :stack (vec new-stack)
+          :fun fun
+          :code (:code fun)
+          :env (:env fun)
+          :pc 0
+          :n-args (:n-args this))
+        (assoc vm-state
+          :stopped? true
+          :reason "Calling undefined function."))))
   VmShow
   (-opcode [this]
     'CALLJ)
@@ -606,7 +610,7 @@
   (-step [this vm-state]
     (let [stack (:stack vm-state)
           [raw-args new-stack] (split-at n-args stack)
-          args (mem/->clojure (vec raw-args))
+          args (mem/->clojure (vec (reverse raw-args)))
           clj-result (apply (:clj-fun (get @operator-table (:name this)))
                             args)
           [result new-store] (mem/->vm clj-result (:store vm-state))]
@@ -737,7 +741,7 @@
 (defn vm
   "Run the virtual machine."
   [prog]
-  (println "Running the VM on " prog)
+  #_(println "Running the VM on " prog)
   (iterate step (initial-state prog)))
 
 (defn active-frames [prog]

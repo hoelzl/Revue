@@ -118,12 +118,12 @@
   ([name args body env]
      ;; TODO: Need to invoke the assembler
      (binding [*current-function* name]
-       (vm/make-fun :env env :args args
-                    :code (gen-seq (gen-args name args 0)
-                                   (compile-sequence
-                                    body
-                                    (conj env (vec args))
-                                    true false))))))
+       (vm/assemble (vm/make-fun :env env :args args
+                              :code (gen-seq (gen-args name args 0)
+                                             (compile-sequence
+                                              body
+                                              (conj env (vec args))
+                                              true false)))))))
 
 ;;; Support for macros
 ;;; ==================
@@ -338,20 +338,14 @@
                         :or {env (util/env) assemble? true}}]
   (reset! label-counter 0)
   (try
-    (let [bytecode (compile-lambda 'top-level () (list form) env)]
-      (if assemble?
-        (vm/assemble bytecode)
-        bytecode))
+    (compile-lambda 'top-level () (list form) env)
     (catch #+clj java.lang.Exception #+cljs js/Error e
            :compiler-error)))
 
 (defn compile-all [forms & {:keys [env assemble?]
                             :or {env (util/env) assemble? true}}]
   (try
-    (let [bytecode (compile-lambda 'top-level () forms env)]
-      (if assemble?
-        (vm/assemble bytecode)
-        bytecode))
+    (compile-lambda 'top-level () forms env)
     (catch #+clj java.lang.Exception #+cljs js/Error e
            :compiler-error)))
 
