@@ -162,16 +162,23 @@
   (test-gen 'OP ['println 0] {:name 'println :n-args 0})
   (test-gen 'OP ['println 3] {:name 'println :n-args 3}))
 
-(defn add-unknown-source-info [inst]
-  (assoc inst :function :%unknown-function :source nil))
+(defn add-source-info [inst & {:keys [function source]
+                                       :or {function :%unknown-function
+                                            source nil}}]
+  (let [inst1 (if (:function inst)
+                inst
+                (assoc inst :function function))]
+    (if (:source inst1)
+      inst1
+      (assoc inst1 :source source))))
 
 (deftest gen-seq
   (is (= (riley/gen-seq) []))
   (is (= (riley/gen-seq (riley/gen 'LVAR 0 1 'x) (riley/gen 'GSET 'foo))
-         (map add-unknown-source-info
+         (map add-source-info
               [(vm/->LVAR 0 1 'x) (vm/->GSET 'foo)])))
     (is (= (riley/gen-seq [] (riley/gen 'LVAR 0 1 'y) [] (riley/gen 'GSET 'foo) [])
-         (map add-unknown-source-info
+         (map add-source-info
               [(vm/->LVAR 0 1 'y) (vm/->GSET 'foo)]))))
 
 (deftest gen-label
@@ -223,21 +230,21 @@
 
 (deftest gen-args-1
   (is (= (riley/gen-args 'foo [])
-         [(add-unknown-source-info (vm/->ARGS 0 'foo))]))
+         [(add-source-info (vm/->ARGS 0 'foo))]))
   (is (= (riley/gen-args 'foo '[a])
-         [(add-unknown-source-info (vm/->ARGS 1 'foo))]))
+         [(add-source-info (vm/->ARGS 1 'foo))]))
   (is (= (riley/gen-args 'foo '[a b])
-         [(add-unknown-source-info (vm/->ARGS 2 'foo))]))
+         [(add-source-info (vm/->ARGS 2 'foo))]))
   (is (= (riley/gen-args 'foo '[a b c])
-         [(add-unknown-source-info (vm/->ARGS 3 'foo))]))
+         [(add-source-info (vm/->ARGS 3 'foo))]))
   (is (= (riley/gen-args 'foo '[& a])
-         [(add-unknown-source-info (vm/->ARGS* 0 'foo))]))
+         [(add-source-info (vm/->ARGS* 0 'foo))]))
   (is (= (riley/gen-args 'foo '[a & b])
-         [(add-unknown-source-info (vm/->ARGS* 1 'foo))]))
+         [(add-source-info (vm/->ARGS* 1 'foo))]))
   (is (= (riley/gen-args 'foo '[a b & c])
-         [(add-unknown-source-info (vm/->ARGS* 2 'foo))]))
+         [(add-source-info (vm/->ARGS* 2 'foo))]))
   (is (= (riley/gen-args 'foo '[a b c & c])
-         [(add-unknown-source-info (vm/->ARGS* 3 'foo))])))
+         [(add-source-info (vm/->ARGS* 3 'foo))])))
 
 (deftest gen-args-2
   (is (thrown? #+clj java.lang.IllegalArgumentException #+cljs js/Error
@@ -248,6 +255,77 @@
                (riley/gen-args 'foo '[a & b c])))
   (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                (riley/gen-args 'foo '[a & 1]))))
+
+(deftest gen-return
+  (binding [riley/*current-function* 'my-fun]
+    (is (= (riley/gen-return))
+        [(add-source-info (vm/->RETURN 'my-fun))])))
+
+(deftest comp-const
+  (binding [riley/*current-function* 'foo]
+    (is (= (riley/comp-const 1 false false) []))
+    (is (= (riley/comp-const 1 false true) []))
+    (is (= (riley/comp-const 1 true false)
+           (map #(assoc %1 :source nil :function 'foo)
+                [(vm/->CONST 1) (vm/->RETURN 'foo)])))
+    (is (= (riley/comp-const 1 true true)
+           [(assoc (vm/->CONST 1) :source nil :function 'foo)]))))
+
+(deftest comp-sequence
+  (is (= (riley/comp-sequence [] (util/env) false false) []))
+  (is (= (riley/comp-sequence [] (util/env) false true) []))
+  (is (= (riley/comp-sequence [] (util/env) true false)
+         (map add-source-info
+              [(vm/->CONST nil) (vm/->RETURN :%unknown-function)])))
+  (is (= (riley/comp-sequence [] (util/env) true true)
+         [(add-source-info (vm/->CONST nil))]))
+  (is (= (riley/comp-sequence [1] (util/env) false false) []))
+  (is (= (riley/comp-sequence [1] (util/env) false true) []))
+  (is (= (riley/comp-sequence [1] (util/env) true false)
+         (map add-source-info
+              [(vm/->CONST 1) (vm/->RETURN :%unknown-function)])))
+  (is (= (riley/comp-sequence [1] (util/env) true true)
+         [(add-source-info (vm/->CONST 1))]))
+  (reset! riley/label-counter 0)
+  (let [label (vm/->Label 'K1)]
+    (is (= (riley/comp-sequence ['(f) 2 3] (util/env) false false)
+           (concat (map (fn [inst] (add-source-info inst :source '(f)))
+                        [(vm/->SAVE label) (assoc (vm/->GVAR 'f) :source 'f)
+                         (vm/->CALLJ 0)])
+                   [label]
+                   (map (fn [inst] (add-source-info inst :source '(f)))
+                        [(vm/->POP)])))))
+  (reset! riley/label-counter 0)
+  (let [label (vm/->Label 'K1)]
+    (is (= (riley/comp-sequence ['(f) 2 3] (util/env) false true)
+           (concat (map (fn [inst] (add-source-info inst :source '(f)))
+                        [(vm/->SAVE label) (assoc (vm/->GVAR 'f) :source 'f)
+                         (vm/->CALLJ 0)])
+                   [label]
+                   (map (fn [inst] (add-source-info inst :source '(f)))
+                        [(vm/->POP)])))))
+  (reset! riley/label-counter 0)
+  (let [label (vm/->Label 'K1)]
+    (is (= (riley/comp-sequence ['(f) 2 3] (util/env) true false)
+           (concat (map (fn [inst] (add-source-info inst :source '(f)))
+                        [(vm/->SAVE label) (assoc (vm/->GVAR 'f) :source 'f)
+                         (vm/->CALLJ 0)])
+                   [label]
+                   (map (fn [inst] (add-source-info inst :source '(f)))
+                        [(vm/->POP) ])
+                   (map add-source-info
+                        [(vm/->CONST 3) (vm/->RETURN :%unknown-function)])))))
+  (reset! riley/label-counter 0)
+  (let [label (vm/->Label 'K1)]
+    (is (= (riley/comp-sequence ['(f) 2 3] (util/env) true true)
+           (concat (map (fn [inst] (add-source-info inst :source '(f)))
+                        [(vm/->SAVE label) (assoc (vm/->GVAR 'f) :source 'f)
+                         (vm/->CALLJ 0)])
+                   [label]
+                   (map (fn [inst] (add-source-info inst :source '(f)))
+                        [(vm/->POP)])
+                   (map add-source-info
+                        [(vm/->CONST 3)]))))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
