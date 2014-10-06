@@ -29,15 +29,25 @@
     (is (= (riley/arg-count '(foo) 0) nil))
     (is (= (riley/arg-count '(foo :a) 1) nil))
     (is (= (riley/arg-count '(foo :a :b :c :d) 4) nil))
-    (is (= (riley/arg-count '(foo) 0 1)))
-    (is (= (riley/arg-count '(foo :a) 0 1)))
-    (is (= (riley/arg-count '(foo) 0 3)))
-    (is (= (riley/arg-count '(foo :a) 0 3)))
-    (is (= (riley/arg-count '(foo :a :b) 0 3)))
-    (is (= (riley/arg-count '(foo :a :b :c) 0 3)))))
+    (is (= (riley/arg-count '(foo) 0 1) nil))
+    (is (= (riley/arg-count '(foo :a) 0 1) nil))
+    (is (= (riley/arg-count '(foo) 0 3) nil))
+    (is (= (riley/arg-count '(foo :a) 0 3) nil))
+    (is (= (riley/arg-count '(foo :a :b) 0 3) nil))
+    (is (= (riley/arg-count '(foo :a :b :c) 0 3) nil))
+    (is (= (riley/arg-count '(foo :a :b) 2 3) nil))
+    (is (= (riley/arg-count '(foo :a :b :c) 2 3) nil))
+    (is (= (riley/arg-count '(foo :a :b) 0 :inf) nil))
+    (is (= (riley/arg-count '(foo :a :b :c) 0 :inf) nil))
+    (is (= (riley/arg-count '(foo :a :b) 2 :inf) nil))
+    (is (= (riley/arg-count '(foo :a :b :c) 2 :inf) nil))))
 
 (deftest arg-count-02
   (testing "Arg count does not match."
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+                 (riley/arg-count 'foo 0)))
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+                 (riley/arg-count () 0)))
     (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (riley/arg-count '(foo :a) 0)))
     (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
@@ -51,7 +61,19 @@
     (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
                  (riley/arg-count '(foo) 1 3)))
     (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
-                 (riley/arg-count '(foo :a :b :c :d) 1 3)))))
+                 (riley/arg-count '(foo :a :b :c :d) 1 3)))
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+                 (riley/arg-count '(foo) 1 :inf)))
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+                 (riley/arg-count '(foo) 2 :inf)))
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+                 (riley/arg-count '(foo 'a) 2 :inf)))
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+                 (riley/arg-count '(foo) 1 :infty)))
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+                 (riley/arg-count '(foo) 2 :infinity)))
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+                 (riley/arg-count '(foo 'a) 2 :infinite)))))
 
 (deftest gen-01
   (testing "Generating instructions: LSET."
@@ -59,7 +81,7 @@
       (is (= (riley/gen 'LSET 0 0 'x)
              (list (assoc (vm/->LSET 0 0 'x)
                      :source 'x
-                     :function '%unknown-source)))))))
+                     :function :%unknown-function)))))))
 
 ;;; The following tests check mainly that the `-opcode` method and the
 ;;; `opcodes` table are defined consistenly.
@@ -141,7 +163,7 @@
   (test-gen 'OP ['println 3] {:name 'println :n-args 3}))
 
 (defn add-unknown-source-info [inst]
-  (assoc inst :function '%unknown-source :source '%unknown-source))
+  (assoc inst :function :%unknown-function :source nil))
 
 (deftest gen-seq
   (is (= (riley/gen-seq) []))
@@ -163,41 +185,69 @@
   (let [env (util/env '[x y] '[a b c])]
     (is (= (riley/gen-var 'x env)
            [(assoc (vm/->LVAR 0 0 'x)
-              :name 'x :source 'x :function '%unknown-source)]))
+              :name 'x :source 'x :function :%unknown-function)]))
     (is (= (riley/gen-var 'y env)
            [(assoc (vm/->LVAR 0 1 'y)
-              :name 'y :source 'y :function '%unknown-source)]))
+              :name 'y :source 'y :function :%unknown-function)]))
     (is (= (riley/gen-var 'a env)
            [(assoc (vm/->LVAR 1 0 'a)
-              :name 'a :source 'a :function '%unknown-source)]))
+              :name 'a :source 'a :function :%unknown-function)]))
     (is (= (riley/gen-var 'b env)
            [(assoc (vm/->LVAR 1 1 'b)
-              :name 'b :source 'b :function '%unknown-source)]))
+              :name 'b :source 'b :function :%unknown-function)]))
     (is (= (riley/gen-var 'c env)
            [(assoc (vm/->LVAR 1 2 'c)
-              :name 'c :source 'c :function '%unknown-source)]))
+              :name 'c :source 'c :function :%unknown-function)]))
     (is (= (riley/gen-var 'z env)
-           [(assoc (vm/->GVAR 'z) :source 'z :function '%unknown-source)]))))
+           [(assoc (vm/->GVAR 'z) :source 'z :function :%unknown-function)]))))
 
 (deftest gen-set
   (let [env (util/env '[x y] '[a b c])]
     (is (= (riley/gen-set 'x env '(set! x 0))
            [(assoc (vm/->LSET 0 0 'x)
-              :name 'x :source '(set! x 0) :function '%unknown-source)]))
+              :name 'x :source '(set! x 0) :function :%unknown-function)]))
     (is (= (riley/gen-set 'y env '(set! y 0))
            [(assoc (vm/->LSET 0 1 'y)
-              :name 'y :source '(set! y 0) :function '%unknown-source)]))
+              :name 'y :source '(set! y 0) :function :%unknown-function)]))
     (is (= (riley/gen-set 'a env '(set! a 0))
            [(assoc (vm/->LSET 1 0 'a)
-              :name 'a :source '(set! a 0) :function '%unknown-source)]))
+              :name 'a :source '(set! a 0) :function :%unknown-function)]))
     (is (= (riley/gen-set 'b env '(set! b 0))
            [(assoc (vm/->LSET 1 1 'b)
-              :name 'b :source '(set! b 0) :function '%unknown-source)]))
+              :name 'b :source '(set! b 0) :function :%unknown-function)]))
     (is (= (riley/gen-set 'c env '(set! c 0))
            [(assoc (vm/->LSET 1 2 'c)
-              :name 'c :source '(set! c 0) :function '%unknown-source)]))
+              :name 'c :source '(set! c 0) :function :%unknown-function)]))
     (is (= (riley/gen-set 'z env '(set! z 0))
-           [(assoc (vm/->GSET 'z) :source '(set! z 0) :function '%unknown-source)]))))
+           [(assoc (vm/->GSET 'z) :source '(set! z 0) :function :%unknown-function)]))))
+
+(deftest gen-args-1
+  (is (= (riley/gen-args 'foo [])
+         [(add-unknown-source-info (vm/->ARGS 0 'foo))]))
+  (is (= (riley/gen-args 'foo '[a])
+         [(add-unknown-source-info (vm/->ARGS 1 'foo))]))
+  (is (= (riley/gen-args 'foo '[a b])
+         [(add-unknown-source-info (vm/->ARGS 2 'foo))]))
+  (is (= (riley/gen-args 'foo '[a b c])
+         [(add-unknown-source-info (vm/->ARGS 3 'foo))]))
+  (is (= (riley/gen-args 'foo '[& a])
+         [(add-unknown-source-info (vm/->ARGS* 0 'foo))]))
+  (is (= (riley/gen-args 'foo '[a & b])
+         [(add-unknown-source-info (vm/->ARGS* 1 'foo))]))
+  (is (= (riley/gen-args 'foo '[a b & c])
+         [(add-unknown-source-info (vm/->ARGS* 2 'foo))]))
+  (is (= (riley/gen-args 'foo '[a b c & c])
+         [(add-unknown-source-info (vm/->ARGS* 3 'foo))])))
+
+(deftest gen-args-2
+  (is (thrown? #+clj java.lang.IllegalArgumentException #+cljs js/Error
+               (riley/gen-args 'foo :args)))
+  (is (thrown? #+clj java.lang.Exception #+cljs js/Error
+               (riley/gen-args 'foo [1])))
+  (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+               (riley/gen-args 'foo '[a & b c])))
+  (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+               (riley/gen-args 'foo '[a & 1]))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
