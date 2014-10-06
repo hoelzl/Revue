@@ -331,7 +331,7 @@
     (gen-seq
      (comp val env true true)
      (gen-set var env form)
-     ;; (when-not val? (gen 'POP))
+     (when-not val? (gen 'POP))
      (when-not more? (gen-return)))))
 
 (defmethod comp ::sequence [form env val? more?]
@@ -465,13 +465,24 @@
   (let [result (compile-all form :env env :assemble? assemble?)]
     (vm/show (:code result))))
 
+(defn comp-show-str [string & {:keys [env assemble?]
+                             :or {env (util/env) assemble? false}}]
+  (let [result (compile-str string :env env :assemble? assemble?)]
+    (vm/show (:code result))))
+
 (defn run [& forms]
   (let [prog (compile-all forms :assemble? true)]
     (vm/vm prog)))
 
+(defn run-str [string]
+  (let [prog (compile-str string :assemble? true)]
+    (vm/vm prog)))
+
 (defn result [& forms]
-  (let [prog (compile-all forms :assemble? true)]
-    (vm/result prog)))
+  (vm/result (apply run forms)))
+
+(defn result-str [string]
+  (vm/result (run-str string)))
 
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for

@@ -204,8 +204,7 @@
     (let [{:keys [env stack]} vm-state
           {:keys [frame slot]} this]
       (assoc vm-state
-        :env (assoc-in env [frame slot] (first stack))
-        :stack (rest stack))))
+        :env (assoc-in env [frame slot] (first stack)))))
   VmShow
   (-opcode [this]
     'LSET)
@@ -740,20 +739,39 @@
 ;;; The VM Proper
 ;;; =============
 
+;;; The VM simply returns an infinite sequence that iterates the
+;;; `step` function on an initial state generated from a bytecode
+;;; program.  Some utility functions serve to extract interesting
+;;; information, e.g., the result value.
+
 (defn vm
-  "Run the virtual machine."
+  "Run the virtual machine on bytecode program `prog` and generate an
+  infinite trace of the execution.  If the program terminates (i.e.,
+  some frame in the trace contains the keyword `:stopped?` with a
+  truthy value) all frames after the first `:stopped?` frame are
+  identical."
   [prog]
   #_(println "Running the VM on " prog)
   (iterate step (initial-state prog)))
 
-(defn active-frames [prog]
-  (take-while (complement :stopped?) (vm prog)))
+(defn active-frames [trace]
+  "Return a sequence of all frames generated while the program is
+  still running.  This function is non-lazy and will therefore loop
+  for non-terinating programs."
+  (take-while (complement :stopped?) trace))
 
-(defn stopped-frame [prog]
-  (first (drop-while (complement :stopped?) (vm prog))))
+(defn stopped-frame [trace]
+  "Return the first frame for which `stopped?` is truthy.  This
+  function is non-lazy and will therefore loop for non-terinating
+  programs."
+  (first (drop-while (complement :stopped?) trace)))
 
-(defn result [prog]
-  (first (:stack (stopped-frame prog))))
+(defn result [trace]
+  "Return the result value of the program that generated `trace`,
+  i.e., the topmost stack value of the first `:stopped?` frame in the
+  trace.  This function is non-lazy and will therefore loop for
+  non-terinating programs."
+  (first (:stack (stopped-frame trace))))
 
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
