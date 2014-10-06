@@ -206,11 +206,11 @@
         (gen-seq (comp (first forms) env false true)
                  (comp-sequence (rest forms) env val? more?))))
 
-(defn comp-arglist [forms env]
+(defn comp-parameters [forms env]
   (if (empty? forms)
     ()
     (gen-seq (comp (first forms) env true true)
-             (comp-arglist (rest forms) env))))
+             (comp-parameters (rest forms) env))))
 
 (defn comp-lambda
   ([args body env]
@@ -397,13 +397,13 @@
        prim
        (if (and (not val?) (not (:side-effects prim)))
          (comp-sequence args env false more?)
-         (gen-seq (comp-arglist args env)
+         (gen-seq (comp-parameters args env)
                   (gen 'PRIM prim)
                   (when-not val? (gen 'POP))
                   (when-not more? (gen-return))))
        ;; Invoking an operator
        op
-       (gen-seq (comp-arglist args env)
+       (gen-seq (comp-parameters args env)
                 (gen 'OP f (count args))
                 (when-not val? (gen 'POP))
                 (when-not more? (gen-return)))
@@ -423,14 +423,14 @@
        more?
        (let [K (gen-label 'K)]
          (gen-seq (gen 'SAVE K)
-                  (comp-arglist args env)
+                  (comp-parameters args env)
                   (comp f env true true)
                   (gen 'CALLJ (count args))
                   (list K)
                   (when-not val? (gen 'POP))))
        ;; Function call as rename plus goto
        :else
-       (gen-seq (comp-arglist args env)
+       (gen-seq (comp-parameters args env)
                 (comp f env true true)
                 (gen 'CALLJ (count args)))))))
 
@@ -446,6 +446,13 @@
                             :or {env (util/env) assemble? true}}]
   (try
     (comp-lambda 'top-level () forms env)
+    (catch #+clj java.lang.Exception #+cljs js/Error e
+           :compiler-error)))
+
+(defn compile-str [string & {:keys [env assemble?]
+                             :or {env (util/env) assemble? true}}]
+  (try
+    (comp-lambda 'top-level () (util/read-program-from-string string) env)
     (catch #+clj java.lang.Exception #+cljs js/Error e
            :compiler-error)))
 
