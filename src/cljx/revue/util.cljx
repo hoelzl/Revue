@@ -7,8 +7,8 @@
             ;; Maybe use clojure.core/read-string for Clojure?
             ;; #+clj [clojure.edn :as reader]
             #+clj [clojure.tools.reader :as reader]
-            #+clj [clojure.pprint :as pprint]))
-
+            #+clj [clojure.pprint :as pprint]
+            [clojure.string :as string]))
 
 ;;; Fixes and Missing Libraries
 ;;; ===========================
@@ -113,7 +113,7 @@
 ;;; =====================
 
 (defn indent [n]
-  (clojure.string/join (repeat n "\t")))
+  (string/join (repeat n "\t")))
 
 ;;; Utilities for the VM representation
 ;;; ===================================
