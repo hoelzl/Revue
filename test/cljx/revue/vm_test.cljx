@@ -54,15 +54,15 @@
     (let [env (util/env [0 1] [2 3])
           state {:env env :stack '(4 5)}]
       (is (= (vm/-step (vm/->LSET 0 0 'x) state)
-             {:env (util/env [4 1] [2 3]) :stack '(5)}))
+             {:env (util/env [4 1] [2 3]) :stack '(4 5)}))
       (is (= (vm/-step (vm/->LSET 0 1 'x) state)
-             {:env (util/env [0 4] [2 3]) :stack '(5)}))
+             {:env (util/env [0 4] [2 3]) :stack '(4 5)}))
       (is (= (vm/-step (vm/->LSET 0 2 'x) state)
-             {:env (util/env [0 1 4] [2 3]) :stack '(5)}))
+             {:env (util/env [0 1 4] [2 3]) :stack '(4 5)}))
       (is (= (vm/-step (vm/->LSET 1 0 'x) state)
-             {:env (util/env [0 1] [4 3]) :stack '(5)}))
+             {:env (util/env [0 1] [4 3]) :stack '(4 5)}))
       (is (= (vm/-step (vm/->LSET 1 1 'x) state)
-             {:env (util/env [0 1] [2 4]) :stack '(5)})))))
+             {:env (util/env [0 1] [2 4]) :stack '(4 5)})))))
 
 (deftest LSET-step-02
   (testing "LSET -step function, out of bounds.")
