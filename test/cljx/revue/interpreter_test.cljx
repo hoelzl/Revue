@@ -5,6 +5,7 @@
                           [clojure.test.check.clojure-test :refer (defspec)])
   (:require #+clj [clojure.test :as t :refer (deftest testing is are)]
             #+cljs [cemerick.cljs.test :as t]
+            [clojure.string :as string]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop :include-macros true]
@@ -18,7 +19,8 @@
 
 (deftest warn-01
   (testing "Warnings from the Interpreter."
-    (is (= (with-out-str (interp/warn "XXX!")) "Interpreter warning: XXX!\n"))))
+    (is (= (string/trim (with-out-str (interp/warn "XXX!")))
+           "Interpreter warning: XXX!"))))
 
 
 ;;; Test for environments
