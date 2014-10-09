@@ -1,7 +1,7 @@
 (ns revue.riley
   "A compiler from a simple Lisp/Scheme/Clojure-like language to the
   Revue VM."
-  (:refer-clojure :exclude (comp compile))
+  (:refer-clojure :exclude (comp compile macroexpand macroexpand-1))
   (:require [revue.util :as util
              :refer [pprint #+cljs nthrest env env-value]]
             [revue.vm :as vm]))
@@ -268,21 +268,27 @@
     (assert expander (str op " has no macro expander."))
     (expander args env)))
 
-(defn macroexpand-1 [[op & args :as form] env]
-  "Macroexpand `form` once if it is a macro, or return it unchanged if
-  it is not."
-  (if (riley-macro? op env)
-    (expand-riley-macro op args env)
-    form))
+(defn macroexpand-1
+  "Macroexpand `form` once if it is a macro, or return it unchanged
+  if it is not."
+  ([form]
+     (macroexpand-1 form (util/env)))
+  ([[op & args :as form] env]
+     (if (riley-macro? op env)
+       (expand-riley-macro op args env)
+       form)))
 
-(defn macroexpand [form env]
-  "Repeatedly macroexpand `form` until its outermost operator is no
-  longer a macro.  Subexpressions may still be macros, i.e.,
-  `macroexpand` is not a tree walker."
-  (let [result (macroexpand-1 form env)]
-    (if (riley-macro? (first result) env)
-      (recur result env)
-      result)))
+(defn macroexpand
+  "Repeatedly macroexpand `form` by calling `macroexpand-1` until its
+  outermost operator is no longer a macro.  Subexpressions may still
+  be macros, i.e., `macroexpand` is not a tree walker."
+  ([form]
+     (macroexpand form (util/env)))
+  ([form env]
+     (let [result (macroexpand-1 form env)]
+       (if (riley-macro? (first result) env)
+         (recur result env)
+         result))))
 
 (defn define-riley-macro [name expander]
   "Define a new macro by giving its name and an expander function that
@@ -304,10 +310,9 @@
             args (rest name)]
         (assert (symbol? fun-name)
                 (str "Cannot define a function named " fun-name "."))
-        (assert (sequential? args)
-                (str "Parameter list of " fun-name " is not a sequence."))
         (assert (every? symbol args)
-                (str "Parameters of " fun-name " must all be symbols."))
+                (str "Parameters of function definition "
+                     fun-name " must all be symbols."))
         (list 'set! fun-name
               (list 'lambda fun-name args
                     (util/maybe-add 'begin forms nil)))))))
@@ -321,9 +326,8 @@
 (define-riley-macro 'letrec
   (fn [[bindings & body] env]
     (list* 'let (map #(list (first %) nil) bindings)
-           (list* 'begin
-                  (map #(list 'set! (first %) (second %)) bindings))
-           body)))
+           (concat (map #(list 'set! (first %) (second %)) bindings)
+                   body))))
 
 ;;; `let` is the most commonly used binding form. Normal `let`s are
 ;;; easily translated into lambdas; named let forms that are very

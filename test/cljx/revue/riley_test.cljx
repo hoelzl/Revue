@@ -328,6 +328,119 @@
                    (map add-source-info
                         [(vm/->CONST 3)]))))))
 
+(deftest macroexpand-1-01
+  (is (riley/macroexpand-1 '(define x 1))
+      '(set! x 1))
+  (is (riley/macroexpand-1 '(define (foo) :bar))
+      '(set! foo (lambda () :bar)))
+  (is (riley/macroexpand-1 '(define (foo x y) (list x y)))
+      '(set! foo (lambda (x y) (list x y))))
+  (is (riley/macroexpand-1 '(define (foo x y) (print x) (println y) 'done))
+      '(set! foo (lambda (x y) (print x) (println y) 'done))))
+
+(deftest macroexpand-1-02
+  (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+               (riley/macroexpand-1 '(define ((x)) :foo))))
+  (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+               (riley/macroexpand-1 '(define (1) :foo)))))
+
+(deftest macroexpand-1-03
+  (is (= (riley/macroexpand-1 '(let ()))
+         '((lambda let ()))))
+  (is (= (riley/macroexpand-1 '(let ((x 0)) (+ x 1)))
+         '((lambda let (x) (+ x 1)) 0)))
+  (is (= (riley/macroexpand-1 '(let ((x 0) (y 1)) (+ x y)))
+         '((lambda let (x y) (+ x y)) 0 1)))
+  (is (= (riley/macroexpand-1
+          '(let ((f nil)) (set! f (lambda (x) (f x))) (f 1)))
+         '((lambda let (f) (set! f (lambda (x) (f x))) (f 1)) nil))))
+
+(deftest macroexpand-1-04
+  (is (= (riley/macroexpand-1 '(let loop () (loop)))
+         '(letrec ((loop (lambda () (loop))))
+                  (loop))))
+  (is (= (riley/macroexpand-1 '(let loop ((x 0)) (loop (+ x 1))))
+         '(letrec ((loop (lambda (x) (loop (+ x 1)))))
+                  (loop 0))))
+  (is (= (riley/macroexpand-1 '(let loop ((x 0) (y 1)) (loop (f x) y)))
+         '(letrec ((loop (lambda (x y) (loop (f x) y))))
+                  (loop 0 1)))))
+
+(deftest macroexpand-1-05
+  (is (= (riley/macroexpand-1 '(letrec ()))
+         '(let ())))
+  (is (= (riley/macroexpand-1 '(letrec ((f (lambda (x) (f x)))) (f 1)))
+         '(let ((f nil)) (set! f (lambda (x) (f x))) (f 1))))
+  (is (= (riley/macroexpand-1 '(letrec ((f (lambda (x) (g x x)))
+                                        (g (lambda (x y) (f (+ x y)))))
+                                       (f 1)))
+         '(let ((f nil) (g nil))
+            (set! f (lambda (x) (g x x)))
+            (set! g (lambda (x y) (f (+ x y))))
+            (f 1)))))
+
+
+(deftest macroexpand-01
+  (is (riley/macroexpand '(define x 1))
+      '(set! x 1))
+  (is (riley/macroexpand '(define (foo) :bar))
+      '(set! foo (lambda () :bar)))
+  (is (riley/macroexpand '(define (foo x y) (list x y)))
+      '(set! foo (lambda (x y) (list x y))))
+  (is (riley/macroexpand '(define (foo x y) (print x) (println y) 'done))
+      '(set! foo (lambda (x y) (print x) (println y) 'done))))
+
+(deftest macroexpand-02
+  (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+               (riley/macroexpand '(define ((x)) :foo))))
+  (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+               (riley/macroexpand '(define (1) :foo)))))
+
+(deftest macroexpand-03
+  (is (= (riley/macroexpand '(let ()))
+         '((lambda let ()))))
+  (is (= (riley/macroexpand '(let ((x 0)) (+ x 1)))
+         '((lambda let (x) (+ x 1)) 0)))
+  (is (= (riley/macroexpand '(let ((x 0) (y 1)) (+ x y)))
+         '((lambda let (x y) (+ x y)) 0 1)))
+  (is (= (riley/macroexpand
+          '(let ((f nil)) (set! f (lambda (x) (f x))) (f 1)))
+         '((lambda let (f) (set! f (lambda (x) (f x))) (f 1)) nil))))
+
+(deftest macroexpand-04
+  (is (= (riley/macroexpand '(let loop () (loop)))
+         '((lambda let (loop)
+              (set! loop (lambda () (loop)))
+              (loop))
+           nil)))
+  (is (= (riley/macroexpand '(let loop ((x 0)) (loop (+ x 1))))
+         '((lambda let (loop)
+              (set! loop (lambda (x) (loop (+ x 1))))
+              (loop 0))
+           nil)))
+  (is (= (riley/macroexpand '(let loop ((x 0) (y 1)) (loop (f x) y)))
+         '((lambda let (loop)
+              (set! loop (lambda (x y) (loop (f x) y)))
+              (loop 0 1))
+           nil))))
+
+(deftest macroexpand-05
+  (is (= (riley/macroexpand '(letrec ()))
+         '((lambda let ()))))
+  (is (= (riley/macroexpand '(letrec ((f (lambda (x) (f x)))) (f 1)))
+         '((lambda let (f)
+              (set! f (lambda (x) (f x)))
+              (f 1))
+           nil)))
+  (is (= (riley/macroexpand '(letrec ((f (lambda (x) (g x x)))
+                                        (g (lambda (x y) (f (+ x y)))))
+                                       (f 1)))
+         '((lambda let (f g)
+              (set! f (lambda (x) (g x x)))
+              (set! g (lambda (x y) (f (+ x y))))
+              (f 1))
+           nil nil))))
+
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
 ;;; (t/run-tests 'revue.riley-test)
