@@ -484,6 +484,16 @@
 (defn result-str [string]
   (vm/result (run-str string)))
 
+;; (result-str
+;;  "(define (fact n) (if (<= n 1) 1 (* n (fact (- n 1))))) (fact 1000N)")
+
+;; (result
+;;  '(define (fact n)
+;;     (let loop ((result 1) (n n))
+;;          (if (<= n 1)
+;;            result
+;;            (loop (* n result) (- n 1)))))
+;;  '(fact 10))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
