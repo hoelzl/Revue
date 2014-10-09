@@ -1,10 +1,11 @@
-;;; Test for the revue.vm namespace.
+;; Test for the revue.vm namespace.
 
 (ns revue.vm-test
   #+cljs (:require-macros [cemerick.cljs.test :as t :refer (deftest testing is are)]
                           [clojure.test.check.clojure-test :refer (defspec)])
   (:require #+clj [clojure.test :as t :refer (deftest testing is are)]
             #+cljs [cemerick.cljs.test :as t]
+            [clojure.string :as string]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop :include-macros true]
@@ -17,7 +18,8 @@
 
 (deftest warn-01
   (testing "Warnings from the VM."
-    (is (= (with-out-str (vm/warn "Hey!")) "VM Warning: Hey!\n"))))
+    (is (= (string/trim (with-out-str (vm/warn "Hey!")))
+           "VM Warning: Hey!"))))
 
 (deftest make-global-env-01
   (testing "make-global-env"
@@ -54,15 +56,15 @@
     (let [env (util/env [0 1] [2 3])
           state {:env env :stack '(4 5)}]
       (is (= (vm/-step (vm/->LSET 0 0 'x) state)
-             {:env (util/env [4 1] [2 3]) :stack '(5)}))
+             {:env (util/env [4 1] [2 3]) :stack '(4 5)}))
       (is (= (vm/-step (vm/->LSET 0 1 'x) state)
-             {:env (util/env [0 4] [2 3]) :stack '(5)}))
+             {:env (util/env [0 4] [2 3]) :stack '(4 5)}))
       (is (= (vm/-step (vm/->LSET 0 2 'x) state)
-             {:env (util/env [0 1 4] [2 3]) :stack '(5)}))
+             {:env (util/env [0 1 4] [2 3]) :stack '(4 5)}))
       (is (= (vm/-step (vm/->LSET 1 0 'x) state)
-             {:env (util/env [0 1] [4 3]) :stack '(5)}))
+             {:env (util/env [0 1] [4 3]) :stack '(4 5)}))
       (is (= (vm/-step (vm/->LSET 1 1 'x) state)
-             {:env (util/env [0 1] [2 4]) :stack '(5)})))))
+             {:env (util/env [0 1] [2 4]) :stack '(4 5)})))))
 
 (deftest LSET-step-02
   (testing "LSET -step function, out of bounds.")

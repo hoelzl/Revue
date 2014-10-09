@@ -5,6 +5,7 @@
                           [clojure.test.check.clojure-test :refer (defspec)])
   (:require #+clj [clojure.test :refer (deftest testing is are) :as t]
             #+cljs [cemerick.cljs.test :as t]
+            [clojure.string :as string]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop :include-macros true]
@@ -22,8 +23,8 @@
 
 (deftest warn-01
   (testing "Test the `warn' function."
-    (is (= (with-out-str (util/warn "Hi!")) "REVUE Warning: Hi!\n"))
-    (is (= (with-out-str (util/warn "Foo" "Bar")) "Foo Bar\n"))))
+    (is (= (string/trim (with-out-str (util/warn "Hi!"))) "REVUE Warning: Hi!"))
+    (is (= (string/trim (with-out-str (util/warn "Foo" "Bar"))) "Foo Bar"))))
 
 (deftest singleton-01
   (testing "Test the `singleton' function."

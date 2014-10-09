@@ -198,67 +198,125 @@
   `more?`.  Otherwise compile the first form with `val?` set to
   `false` and `more?` set to `true`, since the value is ignored and
   there are more forms to compile."
-  (cond (empty? forms)
-        (comp-const nil val? more?)
-        (util/singleton? forms)
-        (comp (first forms) env val? more?)
-        :else
-        (gen-seq (comp (first forms) env false true)
-                 (comp-sequence (rest forms) env val? more?))))
+  (cond
+   ;; An empty sequence evaluates to `nil`.
+   (empty? forms)
+   (comp-const nil val? more?)
+   ;; A sequence containing a single form is equivalent to this form.
+   (util/singleton? forms)
+   (comp (first forms) env val? more?)
+   ;; If we have more than one form in the sequence we compile the
+   ;; first one for effect and recurse on the rest.  This means that,
+   ;; e.g., constants appearing in the sequence will not generate any
+   ;; code.
+   :else
+   (gen-seq (comp (first forms) env false true)
+            (comp-sequence (rest forms) env val? more?))))
 
 (defn comp-parameters [forms env]
+  "Compile each member of `forms` and push the result on the stack.
+  In contrast to `comp-sequence` each parameter is evaluated for
+  value."
   (if (empty? forms)
     ()
     (gen-seq (comp (first forms) env true true)
              (comp-parameters (rest forms) env))))
 
 (defn comp-lambda
+  "Compile a lambda abstraction.  This is done by compiling the body
+  of the function as sequence in a new environment augmented with the
+  arguments of the function.  If a `name` is supplied it is used as
+  name of the function for debugging purposes, but it is not bound as
+  a variable."
   ([args body env]
      (comp-lambda '%anonymous-lambda args body env))
   ([name args body env]
-     ;; TODO: Need to invoke the assembler
      (binding [*current-function* name]
-       (vm/assemble (vm/make-fun :env env :args args
-                              :code (gen-seq (gen-args name args)
-                                             (comp-sequence
-                                              body
-                                              (conj env (vec args))
-                                              true false)))))))
+       (vm/make-fun :env env :args args
+                    :code (gen-seq (gen-args name args)
+                                   (comp-sequence
+                                    body
+                                    (conj env (vec args))
+                                    true false))))))
 
 ;;; Support for macros
 ;;; ==================
 
-(def macro-environment (atom {}))
+;;; We don't want to implement many forms that are directly
+;;; manipulated by the compiler.  Therefore we rely on macros to
+;;; implement most of the syntax of the language.
+
+(def macro-environment
+  "The macro enironment holds the compile-time bindings of macros,
+  i.e., function that take a source code form and an environment and
+  return a new source code form to be compiled.  We currently only
+  support global macros; therefore we only need a flat, global
+  environment for macros."
+  (atom {}))
 
 (defn riley-macro? [op env]
+  "Returns `true` if `op` has a macro binding in `env`.  Since we
+  don't support lexical macros for the time being, we ignore the
+  environment and just check whether the name is bound in
+  `macro-environment`."
   (get @macro-environment op false))
 
 (defn expand-riley-macro [op args env]
+  "Expand the macro `op` when given arguments `args`.  This may only
+  be called if `op` is known to be a macro."
   (let [expander (get @macro-environment op)]
     (assert expander (str op " has no macro expander."))
     (expander args env)))
 
-(defn riley-macroexpand-1 [[op & args] & [env]]
-  (expand-riley-macro op args env))
+(defn macroexpand-1 [[op & args :as form] env]
+  "Macroexpand `form` once if it is a macro, or return it unchanged if
+  it is not."
+  (if (riley-macro? op env)
+    (expand-riley-macro op args env)
+    form))
 
-(defn riley-macroexpand [[op & args] & [env]]
-  (let [result (expand-riley-macro op args env)]
+(defn macroexpand [form env]
+  "Repeatedly macroexpand `form` until its outermost operator is no
+  longer a macro.  Subexpressions may still be macros, i.e.,
+  `macroexpand` is not a tree walker."
+  (let [result (macroexpand-1 form env)]
     (if (riley-macro? (first result) env)
       (recur result env)
       result)))
 
 (defn define-riley-macro [name expander]
+  "Define a new macro by giving its name and an expander function that
+  takes a source form and an environment."
   (swap! macro-environment assoc name expander))
 
+;;; Expand a top-level `define` form by expanding either in a simple
+;;; `set!` if the defined value is a symbol, or by building a new
+;;; lambda-term if the defined value is a list.
+
 (define-riley-macro 'define
-  (fn [[name & forms] env]
+  (fn [[name & forms :as definition] env]
     (if (symbol? name)
       (do
-        (assert (util/singleton? forms))
+        (assert (util/singleton? forms)
+                (str "Definition for " name " is not a single value."))
         (list 'set! name (first forms)))
-      (list 'set! (first name)
-            (list 'lambda (first name) (rest name)
-                  (util/maybe-add 'begin forms nil))))))
+      (let [fun-name (first name)
+            args (rest name)]
+        (assert (symbol? fun-name)
+                (str "Cannot define a function named " fun-name "."))
+        (assert (sequential? args)
+                (str "Parameter list of " fun-name " is not a sequence."))
+        (assert (every? symbol args)
+                (str "Parameters of " fun-name " must all be symbols."))
+        (list 'set! fun-name
+              (list 'lambda fun-name args
+                    (util/maybe-add 'begin forms nil)))))))
+
+;;; `letrec` binds name to values, similar to `let`, however all
+;;; values in a `letrec` are in scope of all variables.  This is
+;;; implemented by first setting the value of all variables to `nil`
+;;; and then assigning the correct values inside the contour
+;;; established inside the variable bindings.
 
 (define-riley-macro 'letrec
   (fn [[bindings & body] env]
@@ -266,6 +324,10 @@
            (list* 'begin
                   (map #(list 'set! (first %) (second %)) bindings))
            body)))
+
+;;; `let` is the most commonly used binding form. Normal `let`s are
+;;; easily translated into lambdas; named let forms that are very
+;;; convenient for loops are translated into `letrec`s.
 
 (define-riley-macro 'let
   (fn [[bindings & body] env]
@@ -438,21 +500,32 @@
                         :or {env (util/env) assemble? true}}]
   (reset! label-counter 0)
   (try
-    (comp-lambda 'top-level () (list form) env)
+    (let [fun (comp-lambda 'top-level () (list form) env)]
+      (if assemble?
+        (vm/assemble fun)
+        fun))
     (catch #+clj java.lang.Exception #+cljs js/Error e
            :compiler-error)))
 
 (defn compile-all [forms & {:keys [env assemble?]
                             :or {env (util/env) assemble? true}}]
   (try
-    (comp-lambda 'top-level () forms env)
+    (let [fun (comp-lambda 'top-level () forms env)]
+      (if assemble?
+        (vm/assemble fun)
+        fun))
     (catch #+clj java.lang.Exception #+cljs js/Error e
            :compiler-error)))
 
 (defn compile-str [string & {:keys [env assemble?]
                              :or {env (util/env) assemble? true}}]
   (try
-    (comp-lambda 'top-level () (util/read-program-from-string string) env)
+    (let [fun (comp-lambda
+               'top-level ()
+               (util/read-program-from-string string) env)]
+      (if assemble?
+        (vm/assemble fun)
+        fun))
     (catch #+clj java.lang.Exception #+cljs js/Error e
            :compiler-error)))
 
