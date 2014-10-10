@@ -17,7 +17,7 @@
   :source-paths ["src/cljx"]
   :test-paths ["target/test-classes"]
   :dependencies [[org.clojure/clojure "1.7.0-alpha2"]
-                 [org.clojure/clojurescript "0.0-2356"]
+                 [org.clojure/clojurescript "0.0-2371"]
                  [org.clojure/tools.reader "0.8.9"]
                  ;;[weasel "0.4.0-SNAPSHOT"]
                  ]
