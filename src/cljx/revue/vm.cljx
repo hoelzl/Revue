@@ -126,12 +126,12 @@
 ;;; =============================
 
 ;;; We need to have the VM instructions available for the assembler,
-;;; thus we define the `assemble` function after the VM instructions.
-;;; However, for some instructions it is convenient to have `assemble`
-;;; available (e.g., for `CC`), so we provide a forward declaration
-;;; here.
+;;; thus we define the `assemble` and `assemble-inst` functions after
+;;; the VM instructions. However, for some instructions it is
+;;; convenient to have these functions available (e.g., for `CC`), so
+;;; we provide a forward declaration here.
 
-(declare assemble)
+(declare assemble assemble-inst)
 
 ;;; VM Instructions
 ;;; ===============
