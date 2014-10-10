@@ -379,6 +379,47 @@
             (set! g (lambda (x y) (f (+ x y))))
             (f 1)))))
 
+(deftest macroexpand-1-06
+  (is (= (riley/macroexpand-1 '(when foo))
+         '(if foo nil nil)))
+  (is (= (riley/macroexpand-1 '(when foo bar))
+         '(if foo bar nil)))
+  (is (= (riley/macroexpand-1 '(when foo bar baz))
+         '(if foo (begin bar baz) nil)))
+  (is (= (riley/macroexpand-1 '(when (not foo)))
+         '(if (not foo) nil nil)))
+  (is (= (riley/macroexpand-1 '(when (not foo) bar))
+         '(if (not foo) bar nil)))
+  (is (= (riley/macroexpand-1 '(when (not foo) bar baz))
+         '(if (not foo) (begin bar baz) nil))))
+
+(deftest macroexpand-1-07
+  (is (= (riley/macroexpand-1 '(when-not foo))
+         '(if (not foo) nil nil)))
+  (is (= (riley/macroexpand-1 '(when-not foo bar))
+         '(if (not foo) bar nil)))
+  (is (= (riley/macroexpand-1 '(when-not foo bar baz))
+         '(if (not foo) (begin bar baz) nil)))
+  (is (= (riley/macroexpand-1 '(when-not (not foo)))
+         '(if foo nil nil)))
+  (is (= (riley/macroexpand-1 '(when-not (not foo) bar))
+         '(if foo bar nil)))
+  (is (= (riley/macroexpand-1 '(when-not (not foo) bar baz))
+         '(if foo (begin bar baz) nil))))
+
+(deftest macroexpand-1-08
+  (is (= (riley/macroexpand-1 '(unless foo))
+         '(when-not foo)))
+  (is (= (riley/macroexpand-1 '(unless foo bar))
+         '(when-not foo bar)))
+  (is (= (riley/macroexpand-1 '(unless foo bar baz))
+         '(when-not foo bar baz)))
+  (is (= (riley/macroexpand-1 '(unless (not foo)))
+         '(when-not (not foo))))
+  (is (= (riley/macroexpand-1 '(unless (not foo) bar))
+         '(when-not (not foo) bar)))
+  (is (= (riley/macroexpand-1 '(unless (not foo) bar baz))
+         '(when-not (not foo) bar baz))))
 
 (deftest macroexpand-01
   (is (riley/macroexpand '(define x 1))
@@ -470,44 +511,58 @@
          :revue.riley/function-application)))
 
 (deftest comp-01
-  (is (= (map str (riley/comp nil (util/env) true false))
-         '("CONST nil" "RETURN :%unknown-function")))
-  (is (= (map str (riley/comp true (util/env) true false))
-         '("CONST true" "RETURN :%unknown-function")))
-  (is (= (map str (riley/comp false (util/env) true false))
-         '("CONST false" "RETURN :%unknown-function")))
-  (is (= (map str (riley/comp 'my-symbol (util/env) true false))
-         '("GVAR my-symbol" "RETURN :%unknown-function")))
-  (is (= (map str (riley/comp 123 (util/env) true false))
-         '("CONST 123" "RETURN :%unknown-function")))
-  (is (= (map str (riley/comp '(quote (some form)) (util/env) true false))
-         '("CONST (quote (some form))" "RETURN :%unknown-function")))
-  (is (= (map str (riley/comp ''(some form) (util/env) true false))
-         '("CONST (quote (some form))" "RETURN :%unknown-function")))
-  (is (= (map str (riley/comp '(set! x 1) (util/env) true false))
-         '("CONST 1" "GSET x" "RETURN :%unknown-function")))
+  (is (= (map vm/->seq (riley/comp nil (util/env) true false))
+         '((CONST nil) (RETURN :%unknown-function))))
+  (is (= (map vm/->seq (riley/comp true (util/env) true false))
+         '((CONST true) (RETURN :%unknown-function))))
+  (is (= (map vm/->seq (riley/comp false (util/env) true false))
+         '((CONST false) (RETURN :%unknown-function))))
+  (is (= (map vm/->seq (riley/comp 'my-symbol (util/env) true false))
+         '((GVAR my-symbol) (RETURN :%unknown-function))))
+  (is (= (map vm/->seq (riley/comp 123 (util/env) true false))
+         '((CONST 123) (RETURN :%unknown-function))))
+  (is (= (map vm/->seq (riley/comp '(quote (some form)) (util/env) true false))
+         '((CONST '(some form)) (RETURN :%unknown-function))))
+  (is (= (map vm/->seq (riley/comp ''(some form) (util/env) true false))
+         '((CONST '(some form)) (RETURN :%unknown-function))))
+  (is (= (map vm/->seq (riley/comp '(set! x 1) (util/env) true false))
+         '((CONST 1) (GSET x) (RETURN :%unknown-function))))
   (reset! riley/label-counter 0)
-  (is (= (map str (riley/comp '(begin (do-this) (do-that)) (util/env) true false))
-         '("SAVE K1" "GVAR do-this" "CALLJ 0" "K1:" "POP" "GVAR do-that" "CALLJ 0")))
+  (is (= (map vm/->seq
+              (riley/comp
+               '(begin (do-this) (do-that)) (util/env) true false))
+         '((SAVE K1)
+           (GVAR do-this)
+           (CALLJ 0)
+           K1
+           (POP)
+           (GVAR do-that)
+           (CALLJ 0))))
   (reset! riley/label-counter 0)
-  (is (= (map str (riley/comp '(if x 1 2) (util/env) true false))
-         '("GVAR x" "FJUMP L1"
-           "CONST 1" "RETURN :%unknown-function"
-           "L1:" "CONST 2" "RETURN :%unknown-function")))
-  (is (= (string/split-lines
-          (first
-           (map str (riley/comp '(lambda (x) (+ x 11)) (util/env) true false))))
-         '["FUN" "\t\tARGS 1 %anonymous-lambda"
-           "\t\tLVAR 0 0 ; x"
-           "\t\tCONST 11"
-           "\t\tOP + 2"
-           "\t\tRETURN %anonymous-lambda"]))
-  (is (= (first (map str (riley/comp '(let ((x 1)) x) (util/env) true false)))
-         "CONST 1"))
-  (is (= (string/split-lines (second (map str (riley/comp '(let ((x 1)) x) (util/env) true false))))
-         '["FUN" "\t\tARGS 1 let" "\t\tLVAR 0 0 ; x" "\t\tRETURN let"]))
-  (is (= (map str (riley/comp '(foo x y) (util/env) true false))
-         '("GVAR x" "GVAR y" "GVAR foo" "CALLJ 2"))))
+  (is (= (map vm/->seq (riley/comp '(if x 1 2) (util/env) true false))
+         '((GVAR x)
+           (FJUMP L1)
+           (CONST 1)
+           (RETURN :%unknown-function)
+           L1
+           (CONST 2)
+           (RETURN :%unknown-function))))
+  (is (= (map vm/->seq
+              (riley/comp
+               '(lambda (x) (+ x 11)) (util/env) true false))
+         '((FUN
+            ((ARGS 1 %anonymous-lambda)
+             (LVAR 0 0 x)
+             (CONST 11)
+             (OP + 2)
+             (RETURN %anonymous-lambda)))
+           (RETURN :%unknown-function))))
+  (is (= (map vm/->seq (riley/comp '(let ((x 1)) x) (util/env) true false))
+         '((CONST 1)
+           (FUN ((ARGS 1 let) (LVAR 0 0 x) (RETURN let)))
+           (CALLJ 1))))
+  (is (= (map vm/->seq (riley/comp '(foo x y) (util/env) true false))
+         '((GVAR x) (GVAR y) (GVAR foo) (CALLJ 2)))))
 
 
 

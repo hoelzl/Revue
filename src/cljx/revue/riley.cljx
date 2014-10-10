@@ -9,6 +9,7 @@
 (defn warn [msg]
   (util/warn "Compiler Warning:" msg))
 
+
 ;;; Some Utilities for the Compiler
 ;;; ===============================
 
@@ -343,6 +344,27 @@
       (list* (list* 'lambda 'let (map first bindings)
                     body)
              (map second bindings)))))
+
+;;; `when` is a simple wrapper around `if` and `begin` for the
+;;; positive case only.
+
+(define-riley-macro 'when
+  (fn [[test & body] env]
+    (list 'if test
+          (util/maybe-add 'begin body nil)
+          nil)))
+
+(define-riley-macro 'when-not
+  (fn [[test & body] env]
+    (list 'if (if (and (seq? test) (= (first test) 'not))
+                (second test)
+                (list 'not test))
+          (util/maybe-add 'begin body nil)
+          nil)))
+
+(define-riley-macro 'unless
+  (fn [[test & body] env]
+    (list* 'when-not test body)))
 
 ;;; The Main Function
 ;;; =================

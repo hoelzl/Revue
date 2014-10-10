@@ -1,7 +1,6 @@
 (ns revue.util
   "The `revue.util` namespace contains utilities used by the rest of
-  the system, i.e., currently the memory subsystem and the
-  interpreter, and in the future by the compiler and the virtual
+  the system, i.e., the memory subsystem, the compiler and the virtual
   machine."
   (:require #+cljs [cljs.reader :as reader]
             ;; Maybe use clojure.core/read-string for Clojure?
@@ -77,7 +76,8 @@
   true)
 
 (defn note
-  "The `note` function is similar to `warn`."
+  "The `note` function is similar to `warn` but controlled by the
+  `*print-notes*` variable."
   ([msg]
      (note "REVUE Note:" msg))
   ([prefix msg]

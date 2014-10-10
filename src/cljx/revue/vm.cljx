@@ -1,4 +1,4 @@
-(ns revue.vm
+ (ns revue.vm
   "The virtual machine for the Revue system."
   (:require [revue.util :as util
              :refer [pprint #+cljs nthrest env env-value]]
@@ -73,15 +73,7 @@
   (:code vm-state))
 
 
-;;; The function `show` displays code is a nicely formatted manner.
-;;; It is a wrapper around `-show` that takes care of types that don't
-;;; implement `VmShow`.  We need it here to debug errors in the
-;;; selection of the current instruction.
-(declare show)
-
 (defn current-instruction [vm-state]
-  #_(println "current-instruction:" (:pc vm-state) (get (code vm-state) (:pc vm-state)))
-  #_(show (code vm-state))
   (get (code vm-state) (:pc vm-state)))
 
 ;;; Operators
@@ -144,14 +136,32 @@
 ;;; VM Instructions
 ;;; ===============
 
+;;; The function `show` displays code is a nicely formatted manner.
+;;; It is a wrapper around `-show` that takes care of types that don't
+;;; implement `VmShow`.  We need it here to debug errors in the
+;;; selection of the current instruction.
+
+(declare show)
+
+;;; The function `->seq` converts an instruction into a sequence.  We
+;;; need it in the definition of `-args` for functions.
+
+(declare ->seq)
+
 (defprotocol VmInst
   "Each instruction of the VM is represented as a datatype that
   implements the `VmInst` protocol.  The function `-step` executes the
   instruction starting in state `vm-state` and returns a new state of
-  the VM.  The function `-opcode` returns the opcode of the
-  instruction."
-  (-step [this vm-state])
-  (-opcode [this]))
+  the VM."
+  (-step [this vm-state]))
+
+(defprotocol VmSeq
+  "Implemented by instructions and labels so that they can be
+  converted to sequences.  The function `-opcode` returns the opcode
+  of the instruction and `-args` returns the arguments (as keywords or
+  functions that extract a usable form of the arguments)."
+  (-opcode [this])
+  (-args [this]))
 
 (defprotocol ResolveLabel
   "Implemented by instructions that take labels as arguments and need
@@ -166,16 +176,13 @@
 (def ^:dynamic *indent* 1)
 
 (defprotocol VmLabel
-  "Marker protocol for labels."
-  #+clj ;; The function `is-label?` is actually superfluous, but
-        ;; Clojure complains when we try to define an empty protocol.
-  (is-label? [this]))
+  "Marker protocol for labels.")
 
 (defrecord Label [name]
-  VmLabel
   Object
   (toString [this]
-    (str (:name this) ":")))
+    (str (:name this) ":"))
+  VmLabel)
 
 ;;; `LVAR` pushes the value of the local variable in environment
 ;;; location `[frame slot]` onto the stack.  `source` is the source
@@ -190,8 +197,11 @@
   (-step [this vm-state]
     (assoc vm-state
       :stack (conj (:stack vm-state) (env-value vm-state this))))
+  VmSeq
   (-opcode [this]
-    'LVAR))
+    'LVAR)
+  (-args [this]
+    [:frame :slot :name]))
 
 ;;; `LSET` pops a value off the stack and puts it into environment
 ;;; location `[frame slot]`.  `name` is the name of the variable in
@@ -210,8 +220,11 @@
           {:keys [frame slot]} this]
       (assoc vm-state
         :env (assoc-in env [frame slot] (first stack)))))
+  VmSeq
   (-opcode [this]
-    'LSET))
+    'LSET)
+  (-args [this]
+    [:frame :slot :name]))
 
 ;;; `GVAR` pushes the value of the global variable `name` onto the
 ;;; stack.  If `name` is not defined in the global environment, `nil`
@@ -225,8 +238,11 @@
     (assoc vm-state
       :stack (conj (:stack vm-state)
                    (get (:global-env vm-state) (:name this)))))
+  VmSeq
   (-opcode [this]
-    'GVAR))
+    'GVAR)
+  (-args [this]
+    [:name]))
 
 ;;; `GSET` stores the topmost value on the stack in global variable
 ;;; `name`.  It does not modify the stack.
@@ -238,8 +254,11 @@
   (-step [this vm-state]
     (assoc vm-state
       :global-env (assoc (:global-env vm-state) name (first (:stack vm-state)))))
+  VmSeq
   (-opcode [this]
-    'GSET))
+    'GSET)
+  (-args [this]
+    [:name]))
 
 ;;; `POP` pops a value off the stack and discards it.
 (defrecord POP []
@@ -251,8 +270,11 @@
     (assert (not (empty? (:stack vm-state)))
             "Cannot pop an empty stack.")
     (update-in vm-state [:stack] rest))
+  VmSeq
   (-opcode [this]
-    'POP))
+    'POP)
+  (-args [this]
+    []))
 
 ;;; `CONST` pushes a constant value onto the stack.  The `value`
 ;;; parameter is a Clojure value that is converted to VM
@@ -269,8 +291,11 @@
       (assoc vm-state
         :stack (conj stack value)
         :store new-store)))
+  VmSeq
   (-opcode [this]
-    'CONST))
+    'CONST)
+  (-args [this]
+    [:value]))
 
 (defn --resolve-label [this label-indices]
   (let [target (:target this)]
@@ -298,8 +323,11 @@
   VmInst
   (-step [this vm-state]
     (assoc vm-state :pc (:target this)))
+  VmSeq
   (-opcode [this]
     'JUMP)
+  (-args [this]
+    [(comp target-str :target)])
   ResolveLabel
   (-resolve-label [this label-indices]
     (--resolve-label this label-indices)))
@@ -320,8 +348,11 @@
           :stack (rest stack))
         (assoc vm-state
           :stack (rest stack)))))
+  VmSeq
   (-opcode [this]
     'FJUMP)
+  (-args [this]
+    [(comp target-str :target)])
   ResolveLabel
   (-resolve-label [this label-indices]
     (--resolve-label this label-indices)))
@@ -342,8 +373,11 @@
           :stack (rest stack))
         (assoc vm-state
           :stack (rest stack)))))
+  VmSeq
   (-opcode [this]
     'TJUMP)
+  (-args [this]
+    [(comp target-str :target)])
   ResolveLabel
   (-resolve-label [this label-indices]
     (--resolve-label this label-indices)))
@@ -362,8 +396,11 @@
   (-step [this vm-state]
     (let [ret-addr (make-return-address (assoc vm-state :pc (:target this)))]
       (update-in vm-state [:stack] conj ret-addr)))
+  VmSeq
   (-opcode [this]
     'SAVE)
+  (-args [this]
+    [(comp target-str :target)])
   ResolveLabel
   (-resolve-label [this label-indices]
     (--resolve-label this label-indices)))
@@ -397,8 +434,11 @@
         (assoc vm-state
           :stopped? true
           :reason (str "Returning to invalid address.")))))
+  VmSeq
   (-opcode [this]
-    'RETURN))
+    'RETURN)
+  (-args [this]
+    [:fun]))
 
 ;;; `CALLJ` calls a function by jumping to its entry point.  To this
 ;;; end, it pops the function that should be invoked from the stack
@@ -422,8 +462,11 @@
         (assoc vm-state
           :stopped? true
           :reason "Calling undefined function."))))
+  VmSeq
   (-opcode [this]
-    'CALLJ))
+    'CALLJ)
+  (-args [this]
+    [:n-args]))
 
 (defn move-args-from-stack-to-env
   "If `n-rest-args` is falsy, pop `n-args` arguments from the stack
@@ -439,7 +482,8 @@
         [tmp-frame tmp-stack] (split-at n-args stack)
         [new-frame new-stack] (if-not n-rest-args
                                 [(vec tmp-frame) (apply list tmp-stack)]
-                                (let [[rest-args tmp-stack-2] (split-at n-rest-args tmp-stack)]
+                                (let [[rest-args tmp-stack-2]
+                                      (split-at n-rest-args tmp-stack)]
                                   [(conj (vec tmp-frame) (vec rest-args))
                                    (apply list tmp-stack-2)]))]
     (assoc vm-state
@@ -467,8 +511,11 @@
           :reason (str "Function " name " called with " (:n-args vm-state)
                        " argument(s), but wants exactly " n-args "."))
         (move-args-from-stack-to-env n-args vm-state))))
+  VmSeq
   (-opcode [this]
-    'ARGS))
+    'ARGS)
+  (-args [this]
+    [:n-args :name]))
 
 ;;; `ARGS*` is the first bytecode instruction executed by functions
 ;;; with variable arity.  It checks that the number of required
@@ -492,9 +539,13 @@
           :stopped? true
           :reason (str "Function " name " called with " supplied-args
                        " argument(s), but wants at least " n-args "."))
-        (move-args-from-stack-to-env n-args vm-state (- supplied-args n-args)))))
+        (move-args-from-stack-to-env
+         n-args vm-state (- supplied-args n-args)))))
+  VmSeq
   (-opcode [this]
-    'ARGS*))
+    'ARGS*)
+  (-args [this]
+    [:n-args :name]))
 
 ;;; `FUN` creates a new closure.  It takes the bytecode-compiled
 ;;; `function` and associates it with the current environment.
@@ -517,8 +568,11 @@
   (-step [this vm-state]
     (update-in vm-state [:stack] conj
                (assoc fun :env (:env vm-state))))
+  VmSeq
   (-opcode [this]
-    'FUN))
+    'FUN)
+  (-args [this]
+    [#(->> %1 :fun :code (map ->seq))]))
 
 ;;; `PRIM` invokes a primitive instruction.  Primitives are
 ;;; implemented as Clojure functions that receive the store as first
@@ -546,8 +600,11 @@
       (assoc vm-state
         :stack (conj new-stack result)
         :store new-store)))
+  VmSeq
   (-opcode [this]
-    'PRIM))
+    'PRIM)
+  (-args [this]
+    [:clj-code]))
 
 ;;; `SET-CC` pops a value off the stack and uses this value as the new
 ;;; continuation.
@@ -558,8 +615,11 @@
   VmInst
   (-step [this vm-state]
     (update-in vm-state [:stack] first))
+  VmSeq
   (-opcode [this]
-    'SET-CC))
+    'SET-CC)
+  (-args [this]
+    []))
 
 ;;; `CC` pushes a function onto the stack that captures the current
 ;;; environment and restores it when it is invoked.  TODO: improve
@@ -579,8 +639,11 @@
                       :env (env (:stack vm-state))
                       :name '%cc
                       :args '[fun])))
+  VmSeq
   (-opcode [this]
-    'CC))
+    'CC)
+  (-args [this]
+    []))
 
 
 ;;; `HALT` stops the execution of the VM; if `step` is invoked after
@@ -597,8 +660,11 @@
     (assoc vm-state
       :stopped? true
       :reason "Program terminated."))
+  VmSeq
   (-opcode [this]
-    'HALT))
+    'HALT)
+  (-args [this]
+    []))
 
 ;;; `OP` invokes an operator defined in Clojure code.  These operators
 ;;; receive their arguments as Clojure data structures and return
@@ -621,12 +687,30 @@
       (assoc vm-state
         :stack (conj new-stack result)
         :store new-store)))
+  VmSeq
   (-opcode [this]
-    'OP))
+    'OP)
+  (-args [this]
+    [:name :n-args]))
 
 (defn opcode [inst]
-  "Return the opcode of `inst`"
+  "Return the opcode of `inst`."
   (-opcode inst))
+
+(defn args [inst]
+  "Return the arguments of `inst`."
+  (-args inst))
+
+(defn ->seq
+  "Convert `inst` into a sequence that corresponds roughly to input
+  that the assembler (i.e., `assemble-inst`) would convert to this
+  instruction.  The correspondence is not exact, since information
+  about source locations, containing function, etc. might be lost."
+  [inst]
+  (if (satisfies? VmLabel inst)
+    (:name inst)
+    (list* (opcode inst)
+           (map #(% inst) (args inst)))))
 
 (defn step
   "Run a single step of the VM starting in `vm-state`.  If the VM is
@@ -667,26 +751,27 @@
   a constructor (that generates the bytecode instruction), an arity
   and whether the last argument of the constructor is a source
   location."
-  {'LVAR    {:constructor ->LVAR   :arity 3 :source true}
-   'LSET    {:constructor ->LSET   :arity 3 :source true}
-   'GVAR    {:constructor ->GVAR   :arity 1 :source false}
-   'GSET    {:constructor ->GSET   :arity 1 :source true}
-   'POP     {:constructor ->POP    :arity 0 :source true}
-   'CONST   {:constructor ->CONST  :arity 1 :source true}
-   'JUMP    {:constructor ->JUMP   :arity 1 :source true}
-   'FJUMP   {:constructor ->FJUMP  :arity 1 :source true}
-   'TJUMP   {:constructor ->TJUMP  :arity 1 :source true}
-   'SAVE    {:constructor ->SAVE   :arity 1 :source true}
-   'RETURN  {:constructor ->RETURN :arity 1 :source true}
-   'CALLJ   {:constructor ->CALLJ  :arity 1 :source true}
-   'ARGS    {:constructor ->ARGS   :arity 2 :source true}
-   'ARGS*   {:constructor ->ARGS*  :arity 2 :source true}
-   'FUN     {:constructor ->FUN    :arity 1 :source true}
-   'PRIM    {:constructor ->PRIM   :arity 1 :source true}
-   'SET-CC  {:constructor ->SET-CC :arity 0 :source false}
-   'CC      {:constructor ->CC     :arity 0 :source true}
-   'HALT    {:constructor ->HALT   :arity 0 :source true}
-   'OP      {:constructor ->OP     :arity 2 :source true}})
+  {'LVAR    {:constructor ->LVAR   :arity 3}
+   'LSET    {:constructor ->LSET   :arity 3}
+   'GVAR    {:constructor ->GVAR   :arity 1}
+   'GSET    {:constructor ->GSET   :arity 1}
+   'POP     {:constructor ->POP    :arity 0}
+   'CONST   {:constructor ->CONST  :arity 1}
+   'JUMP    {:constructor ->JUMP   :arity 1}
+   'FJUMP   {:constructor ->FJUMP  :arity 1}
+   'TJUMP   {:constructor ->TJUMP  :arity 1}
+   'SAVE    {:constructor ->SAVE   :arity 1}
+   'RETURN  {:constructor ->RETURN :arity 1}
+   'CALLJ   {:constructor ->CALLJ  :arity 1}
+   'ARGS    {:constructor ->ARGS   :arity 2}
+   'ARGS*   {:constructor ->ARGS*  :arity 2}
+   'FUN     {:constructor ->FUN    :arity 1
+             :arg-fun #(map assemble-inst %1)}
+   'PRIM    {:constructor ->PRIM   :arity 1}
+   'SET-CC  {:constructor ->SET-CC :arity 0}
+   'CC      {:constructor ->CC     :arity 0}
+   'HALT    {:constructor ->HALT   :arity 0}
+   'OP      {:constructor ->OP     :arity 2}})
 
 (defn assemble-inst [inst]
   (if (or (satisfies? VmInst inst) (satisfies? VmLabel inst))
@@ -696,7 +781,10 @@
         (cond
          ;; Operator arity and call arity match
          (= (:arity opcode-descr) (count args))
-         (apply (:constructor opcode-descr) args)
+         (apply (:constructor opcode-descr)
+                (if-let [arg-fun (:arg-fun opcode-descr)]
+                  (list (apply arg-fun args))
+                  args))
          ;; Wrong arity
          :else
          (util/error "Opcode " opcode " applied to " (count args)
@@ -728,6 +816,9 @@
   "Assemble a sequence of instructions from Clojure lists into
   `VmInst` data structures."
   [{:keys [code] :as bytecode}]
+  (assert (= (:type bytecode) :bytecode-function)
+          (str  "Cannot assemble " bytecode
+                ", only bytecode functions are supported."))
   (let [pass-1 (map assemble-inst code)
         label-indices (find-label-indices pass-1)
         new-code (vec (keep (resolve-label-indices label-indices)
