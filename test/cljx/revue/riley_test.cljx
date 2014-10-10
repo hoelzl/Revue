@@ -441,6 +441,76 @@
               (f 1))
            nil nil))))
 
+(deftest comp-dispatch
+  (is (= (riley/comp-dispatch nil (util/env) false false)
+         :revue.riley/nil))
+  (is (= (riley/comp-dispatch true (util/env) false false)
+         :revue.riley/boolean))
+  (is (= (riley/comp-dispatch false (util/env) false false)
+         :revue.riley/boolean))
+  (is (= (riley/comp-dispatch 'my-symbol (util/env) false false)
+         :revue.riley/symbol))
+  (is (= (riley/comp-dispatch 123 (util/env) false false)
+         :revue.riley/atom))
+  (is (= (riley/comp-dispatch '(quote (some form)) (util/env) false false)
+         :revue.riley/quote))
+  (is (= (riley/comp-dispatch ''(some form) (util/env) false false)
+         :revue.riley/quote))
+  (is (= (riley/comp-dispatch '(set! x 1) (util/env) false false)
+         :revue.riley/setter))
+  (is (= (riley/comp-dispatch '(begin (do-this) (do-that)) (util/env) false false)
+         :revue.riley/sequence))
+  (is (= (riley/comp-dispatch '(if x 1 2) (util/env) false false)
+         :revue.riley/conditional))
+  (is (= (riley/comp-dispatch '(lambda (x) (+ x 11)) (util/env) false false)
+         :revue.riley/closure))
+  (is (= (riley/comp-dispatch '(let ((x 1)) x) (util/env) false false)
+         :revue.riley/macro-application))
+  (is (= (riley/comp-dispatch '(foo x y) (util/env) false false)
+         :revue.riley/function-application)))
+
+(deftest comp-01
+  (is (= (map str (riley/comp nil (util/env) true false))
+         '("CONST nil" "RETURN :%unknown-function")))
+  (is (= (map str (riley/comp true (util/env) true false))
+         '("CONST true" "RETURN :%unknown-function")))
+  (is (= (map str (riley/comp false (util/env) true false))
+         '("CONST false" "RETURN :%unknown-function")))
+  (is (= (map str (riley/comp 'my-symbol (util/env) true false))
+         '("GVAR my-symbol" "RETURN :%unknown-function")))
+  (is (= (map str (riley/comp 123 (util/env) true false))
+         '("CONST 123" "RETURN :%unknown-function")))
+  (is (= (map str (riley/comp '(quote (some form)) (util/env) true false))
+         '("CONST (quote (some form))" "RETURN :%unknown-function")))
+  (is (= (map str (riley/comp ''(some form) (util/env) true false))
+         '("CONST (quote (some form))" "RETURN :%unknown-function")))
+  (is (= (map str (riley/comp '(set! x 1) (util/env) true false))
+         '("CONST 1" "GSET x" "RETURN :%unknown-function")))
+  (reset! riley/label-counter 0)
+  (is (= (map str (riley/comp '(begin (do-this) (do-that)) (util/env) true false))
+         '("SAVE K1" "GVAR do-this" "CALLJ 0" "K1:" "POP" "GVAR do-that" "CALLJ 0")))
+  (reset! riley/label-counter 0)
+  (is (= (map str (riley/comp '(if x 1 2) (util/env) true false))
+         '("GVAR x" "FJUMP L1"
+           "CONST 1" "RETURN :%unknown-function"
+           "L1:" "CONST 2" "RETURN :%unknown-function")))
+  (is (= (string/split-lines
+          (first
+           (map str (riley/comp '(lambda (x) (+ x 11)) (util/env) true false))))
+         '["FUN" "\t\tARGS 1 %anonymous-lambda"
+           "\t\tLVAR 0 0 ; x"
+           "\t\tCONST 11"
+           "\t\tOP + 2"
+           "\t\tRETURN %anonymous-lambda"]))
+  (is (= (first (map str (riley/comp '(let ((x 1)) x) (util/env) true false)))
+         "CONST 1"))
+  (is (= (string/split-lines (second (map str (riley/comp '(let ((x 1)) x) (util/env) true false))))
+         '["FUN" "\t\tARGS 1 let" "\t\tLVAR 0 0 ; x" "\t\tRETURN let"]))
+  (is (= (map str (riley/comp '(foo x y) (util/env) true false))
+         '("GVAR x" "GVAR y" "GVAR foo" "CALLJ 2"))))
+
+
+
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
 ;;; (t/run-tests 'revue.riley-test)

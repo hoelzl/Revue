@@ -112,6 +112,8 @@
 ;;; Utilities for Strings
 ;;; =====================
 
+(def newline-str (with-out-str #+clj (newline) #+cljs (newline {})))
+
 (defn indent [n]
   (string/join (repeat n "\t")))
 
