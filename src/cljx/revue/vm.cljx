@@ -46,11 +46,19 @@
    :env env})
 
 (defn make-fun
-  "Create a new bytecode-interpreted function."
-  [& {:keys [code env name args]}]
+  "Create a new bytecode-interpreted function.  `code` is a sequence
+  of VM instructions, `env` is initially the compilation environment
+  in which the function is defined, `body-env` is the compilation
+  environment of the function body (i.e., the initial value of `env`
+  extended with the `args`), `name` is a function name for debugging
+  purposes and `args` is the argument list of the function.  When a
+  closure is built from the function, `env` is overwritten with the
+  run-time environment for the closure."
+  [& {:keys [code env body-env name args]}]
   {:type :bytecode-function
    :code code
    :env env
+   :body-env body-env
    :name name
    :args args})
 
@@ -551,10 +559,17 @@
 ;;; `function` and associates it with the current environment.
 (defrecord FUN [fun]
   Object
+  ;; This is kind of wrong, since the indentation should be
+  ;; dynamically determined so that the function body lines up
+  ;; correctly when printing it in different situations.  However,
+  ;; until ClojureScript provides a pretty printer this will have to
+  ;; do.
   (toString [this]
     (let [code (:code (:fun this))
-          line-break (str util/newline-str (util/indent (inc *indent*)))
-          label-break (str util/newline-str (util/indent *indent*))
+          line-break (str util/newline-str
+                          (util/indent (inc *indent*)))
+          label-break (str util/newline-str
+                           (util/indent *indent*))
           line-breaks (map (fn [[prev cur]]
                              (if (satisfies? VmLabel prev)
                                (util/indent 1)

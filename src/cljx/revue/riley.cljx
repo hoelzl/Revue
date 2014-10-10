@@ -233,12 +233,14 @@
      (comp-lambda '%anonymous-lambda args body env))
   ([name args body env]
      (binding [*current-function* name]
-       (vm/make-fun :env env :args args
-                    :code (gen-seq (gen-args name args)
-                                   (comp-sequence
-                                    body
-                                    (conj env (vec args))
-                                    true false))))))
+       (let [body-env (conj env (vec args))]
+         (vm/make-fun :env env :args args
+                      :body-env body-env
+                      :code (gen-seq (gen-args name args)
+                                     (comp-sequence
+                                      body
+                                      body-env
+                                      true false)))))))
 
 ;;; Support for macros
 ;;; ==================
@@ -464,7 +466,9 @@
                            [args-or-name
                             (first body-or-args-and-body)
                             (rest body-or-args-and-body)]
-                           ['%anonymous-lambda args-or-name body-or-args-and-body])]
+                           ['%anonymous-lambda
+                            args-or-name
+                            body-or-args-and-body])]
     (binding [*current-form* form]
       (let [f (comp-lambda name args body env)]
         (gen-seq (gen 'FUN f)

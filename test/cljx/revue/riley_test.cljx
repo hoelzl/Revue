@@ -557,12 +557,104 @@
              (OP + 2)
              (RETURN %anonymous-lambda)))
            (RETURN :%unknown-function))))
+  (is (= (map vm/->seq
+              (riley/comp
+               '(lambda (x) (lambda (y) (+ x y z))) (util/env) true false))
+         '((FUN
+            ((ARGS 1 %anonymous-lambda)
+             (FUN
+              ((ARGS 1 %anonymous-lambda)
+               (LVAR 1 0 x)
+               (LVAR 0 0 y)
+               (GVAR z)
+               (OP + 3)
+               (RETURN %anonymous-lambda)))
+             (RETURN %anonymous-lambda)))
+           (RETURN :%unknown-function))))
   (is (= (map vm/->seq (riley/comp '(let ((x 1)) x) (util/env) true false))
          '((CONST 1)
            (FUN ((ARGS 1 let) (LVAR 0 0 x) (RETURN let)))
            (CALLJ 1))))
   (is (= (map vm/->seq (riley/comp '(foo x y) (util/env) true false))
          '((GVAR x) (GVAR y) (GVAR foo) (CALLJ 2)))))
+
+
+(deftest comp-02
+  (is (= (map vm/->seq (riley/comp nil (util/env) true true))
+         '((CONST nil))))
+  (is (= (map vm/->seq (riley/comp true (util/env) true true))
+         '((CONST true))))
+  (is (= (map vm/->seq (riley/comp false (util/env) true true))
+         '((CONST false))))
+  (is (= (map vm/->seq (riley/comp 'my-symbol (util/env) true true))
+         '((GVAR my-symbol))))
+  (is (= (map vm/->seq (riley/comp 123 (util/env) true true))
+         '((CONST 123))))
+  (is (= (map vm/->seq (riley/comp '(quote (some form)) (util/env) true true))
+         '((CONST '(some form)))))
+  (is (= (map vm/->seq (riley/comp ''(some form) (util/env) true true))
+         '((CONST '(some form)))))
+  (is (= (map vm/->seq (riley/comp '(set! x 1) (util/env) true true))
+         '((CONST 1) (GSET x))))
+  (reset! riley/label-counter 0)
+  (is (= (map vm/->seq
+              (riley/comp
+               '(begin (do-this) (do-that)) (util/env) true true))
+         '((SAVE K1)
+           (GVAR do-this)
+           (CALLJ 0)
+           K1
+           (POP)
+           (SAVE K2)
+           (GVAR do-that)
+           (CALLJ 0)
+           K2)))
+  (reset! riley/label-counter 0)
+  (is (= (map vm/->seq (riley/comp '(if x 1 2) (util/env) true true))
+         '((GVAR x)
+           (FJUMP L1)
+           (CONST 1)
+           (JUMP L2)
+           L1
+           (CONST 2)
+           L2)))
+  (is (= (map vm/->seq
+              (riley/comp
+               '(lambda (x) (+ x 11)) (util/env) true true))
+         '((FUN
+            ((ARGS 1 %anonymous-lambda)
+             (LVAR 0 0 x)
+             (CONST 11)
+             (OP + 2)
+             (RETURN %anonymous-lambda))))))
+  (is (= (map vm/->seq
+              (riley/comp
+               '(lambda (x) (lambda (y) (+ x y z))) (util/env) true true))
+         '((FUN
+            ((ARGS 1 %anonymous-lambda)
+             (FUN
+              ((ARGS 1 %anonymous-lambda)
+               (LVAR 1 0 x)
+               (LVAR 0 0 y)
+               (GVAR z)
+               (OP + 3)
+               (RETURN %anonymous-lambda)))
+             (RETURN %anonymous-lambda))))))
+  (reset! riley/label-counter 0)
+  (is (= (map vm/->seq (riley/comp '(let ((x 1)) x) (util/env) true true))
+         '((SAVE K1)
+           (CONST 1)
+           (FUN ((ARGS 1 let) (LVAR 0 0 x) (RETURN let)))
+           (CALLJ 1)
+           K1)))
+  (reset! riley/label-counter 0)
+  (is (= (map vm/->seq (riley/comp '(foo x y) (util/env) true true))
+         '((SAVE K1)
+           (GVAR x)
+           (GVAR y)
+           (GVAR foo)
+           (CALLJ 2)
+           K1))))
 
 
 
