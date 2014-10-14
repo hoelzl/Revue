@@ -308,7 +308,9 @@
       (do
         (assert (util/singleton? forms)
                 (str "Definition for " name " is not a single value."))
-        (list 'set! name (first forms)))
+        (list 'begin
+              (list 'set! name (first forms))
+              (list 'quote name)))
       (let [fun-name (first name)
             args (rest name)]
         (assert (symbol? fun-name)
@@ -316,9 +318,11 @@
         (assert (every? symbol args)
                 (str "Parameters of function definition "
                      fun-name " must all be symbols."))
-        (list 'set! fun-name
-              (list 'lambda fun-name args
-                    (util/maybe-add 'begin forms nil)))))))
+        (list 'begin
+              (list 'set! fun-name
+                    (list 'lambda fun-name args
+                          (util/maybe-add 'begin forms nil)))
+              (list 'quote fun-name))))))
 
 ;;; `letrec` binds name to values, similar to `let`, however all
 ;;; values in a `letrec` are in scope of all variables.  This is
@@ -411,7 +415,7 @@
 
 (defmethod comp ::quote [form env val? more?]
   (arg-count form 1)
-  (comp-const form val? more?))
+  (comp-const (nth form 1) val? more?))
 
 (defmethod comp ::setter [[_ var val :as form] env val? more?]
   (arg-count form 2)

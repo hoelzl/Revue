@@ -278,7 +278,7 @@
   VmShow
   (-show [this indent]
     (if (sequential? this)
-      (doseq [inst this] (show inst indent))
+      (doseq [inst this] (-show inst indent))
       (println (str (util/indent indent) this)))))
 
 (defprotocol VmSeq
@@ -308,7 +308,10 @@
   Object
   (toString [this]
     (str (:name this) ":"))
-  VmLabel)
+  VmLabel
+  VmShow
+  (-show [this indent]
+    (print (str this))))
 
 ;;; `LVAR` pushes the value of the local variable in environment
 ;;; location `[frame slot]` onto the stack.  `source` is the source
@@ -688,9 +691,7 @@
                (assoc fun :env (:env vm-state))))
   VmAssemble
   (-assemble [this]
-    (println "-assemble" (:type (:fun this)))
-    ;(assoc this :fun (assemble (:fun this)))
-    this)
+    (assoc this :fun (assemble (:fun this))))
   VmSeq
   (-opcode [this]
     'FUN)
@@ -907,18 +908,19 @@
 (defn assemble-inst [inst]
   (let [inst2
         (if (or (satisfies? VmInst inst) (satisfies? VmLabel inst))
-         inst
-         (let [[opcode & args] inst]
-           (if-let [opcode-descr (get opcodes opcode)]
-             (cond
-              ;; Operator arity and call arity match
-              (= (:arity opcode-descr) (count args))
-              (apply (:constructor opcode-descr) args)
-              ;; Wrong arity
-              :else
-              (util/error "Opcode " opcode " applied to " (count args)
-                          " arguments, but wants " (:arity opcode-descr)))
-             (util/error "Unknown opcode " opcode " in " inst "."))))]
+          inst
+          (do
+            (let [[opcode & args] inst]
+              (if-let [opcode-descr (get opcodes opcode)]
+                (cond
+                 ;; Operator arity and call arity match
+                 (= (:arity opcode-descr) (count args))
+                 (apply (:constructor opcode-descr) args)
+                 ;; Wrong arity
+                 :else
+                 (util/error "Opcode " opcode " applied to " (count args)
+                             " arguments, but wants " (:arity opcode-descr)))
+                (util/error "Unknown opcode " opcode " in " inst ".")))))]
     (if (satisfies? VmAssemble inst2)
       ;; We have an instruction with internal bytecode; call assemble
       ;; recursively
@@ -942,7 +944,7 @@
      (satisfies? ResolveLabel inst)
      (do
        (-resolve-label inst label-indices))
-     (= (opcode inst) 'Label)
+     (satisfies? VmLabel inst)
      nil
      :else
      inst)))
