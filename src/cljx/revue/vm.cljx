@@ -34,8 +34,36 @@
         (recur (next ks) (next vs) (assoc result (first ks) v) new-store))
       [result store])))
 
-;;; The VM State
-;;; ============
+
+;;; Functions and Return Addresses
+;;; ==============================
+
+;;; Byte-code interpreted functions and return addresses are defined
+;;; as plain Clojure maps, with a `:type` attribute to simplify
+;;; debugging.
+
+(defn make-fun
+  "`make-fun` creates a new bytecode-interpreted function.  `code` is
+  a sequence of VM instructions, `env` is initially the compilation
+  environment in which the function is defined, `body-env` is the
+  compilation environment of the function body (i.e., the initial
+  value of `env` extended with the `args`), `name` is a function name
+  for debugging purposes and `args` is the argument list of the
+  function.  When a closure is built from the function, `env` is
+  overwritten with the run-time environment for the closure."
+  [& {:keys [code env body-env name args]}]
+  {:type :bytecode-function
+   :code code
+   :env env
+   :body-env body-env
+   :name name
+   :args args})
+
+;;; Since the VM works on a function-by-function basis, return
+;;; addresses are structured objects that say to which function we
+;;; should return, as well as the PC inside that function and the
+;;; environment that was current at the time we left the body of
+;;; `fun`.
 
 (defn make-return-address
   "Create a new return address that jumps to step `pc` in `fun`."
@@ -45,22 +73,9 @@
    :pc pc
    :env env})
 
-(defn make-fun
-  "Create a new bytecode-interpreted function.  `code` is a sequence
-  of VM instructions, `env` is initially the compilation environment
-  in which the function is defined, `body-env` is the compilation
-  environment of the function body (i.e., the initial value of `env`
-  extended with the `args`), `name` is a function name for debugging
-  purposes and `args` is the argument list of the function.  When a
-  closure is built from the function, `env` is overwritten with the
-  run-time environment for the closure."
-  [& {:keys [code env body-env name args]}]
-  {:type :bytecode-function
-   :code code
-   :env env
-   :body-env body-env
-   :name name
-   :args args})
+
+;;; The VM State
+;;; ============
 
 (defn initial-state
   "Create a new state for a VM, initially executing function `f`"
@@ -76,29 +91,65 @@
      :n-args 0
      :stopped? false}))
 
+;;; Next we define some functions to access elements of the VM state,
+;;; and some functions that will be useful in filtering traces.
+
 (defn code [vm-state]
+  "Return the code (i.e., the sequence of bytecode instructions) of
+  the function the VM is executing in `vm-state`."
   (:code (:fun vm-state)))
 
 (defn current-instruction [vm-state]
+  "Return the instruction that is active in `vm-state`.  Note that
+  when the `step` function is called, the program counter has already
+  been advanced to the next position, so during the dynamic extent of
+  `step` this function returns the *next* instruction that will be
+  executed.  However, it should never be necessary to call
+  `current-instruction` while a `step` function is running, since the
+  current instruction is available as `this` argument of `-step`."
   (get (code vm-state) (:pc vm-state)))
+
+(declare opcode)
+
+(defn current-instruction-is [vm-state desired-opcode]
+  "Returns `true` if the current instruction in `vm-state` has opcode
+  `desired-opcode`, `false` otherwise."
+  (= (opcode (current-instruction vm-state)) desired-opcode))
 
 ;;; Operators
 ;;; =========
 
 ;;; Operators are functions that are implemented in Clojure.
 
-(def operator-table (atom {}))
+(def operator-table
+  "A table containing all operators defined for the VM."
+  (atom {}))
 
-(defn operator? [op env]
-  (get @operator-table op false))
+(defn operator?
+  "Returns a truthy value if `op` is an operator defined either
+  globally or in `env`, `false` otherwise.  Currently there is no way
+  to define local operators, so the `env` argument is superfluous."
+  ([op env]
+     (get @operator-table op false))
+  ([op]
+     (operator? op nil)))
 
 (defn define-operator
+  "Defines operator `name` that takes either exactly `n-args` or
+  between `min-args` and `max-args` arguments.  When the operator is
+  invoked, `code` is executed.  The arguments passed to `code` are
+  already converted to Clojure format; the result of `code` should
+  also be a Clojure value (not in VM representation).  If an operation
+  requires access to the memory subsystem it should be implemented as
+  primitive instead."
   ([name n-args code]
      (define-operator name n-args n-args code))
   ([name min-args max-args code]
      (swap! operator-table assoc name {:clj-fun code
                                        :min-args min-args
                                        :max-args max-args})))
+
+;;; Some predefined operators:
 
 (define-operator '+ 0 :inf +)
 (define-operator '- 0 :inf -)
