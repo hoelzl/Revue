@@ -68,7 +68,6 @@
   (let [[global-env store] (make-global-env)]
     {:type :vm-state
      :fun f
-     :code (:code f)
      :pc 0
      :global-env global-env
      :env ()
@@ -78,8 +77,7 @@
      :stopped? false}))
 
 (defn code [vm-state]
-  (:code vm-state))
-
+  (:code (:fun vm-state)))
 
 (defn current-instruction [vm-state]
   (get (code vm-state) (:pc vm-state)))
@@ -431,7 +429,6 @@
        (assoc vm-state
          :stack (cons (first stack) (list* (drop 2 stack)))
          :fun fun
-         :code (:code fun)
          :env (:env return-address)
          :pc (:pc return-address))
        (= (:fun this) 'top-level)
@@ -463,7 +460,6 @@
         (assoc vm-state
           :stack (vec new-stack)
           :fun fun
-          :code (:code fun)
           :env (:env fun)
           :pc 0
           :n-args (:n-args this))

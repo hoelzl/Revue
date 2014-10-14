@@ -178,7 +178,6 @@
                         :fun 'bar :pc 10 :env (util/env [4 5])})
              {:stack '(1 4)
               :fun f
-              :code (:code f)
               :pc (:pc ret-addr)
               :env (:env ret-addr)})))))
 
@@ -195,7 +194,6 @@
              {:n-args 1
               :stack '(4)
               :fun f
-              :code (:code f)
               :pc 0
               :env (:env f)})))))
 
