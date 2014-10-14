@@ -44,7 +44,7 @@
                                 (vm/->ARGS 3 'bar)
                                 (vm/->ARGS* 3 'baz)
                                 (vm/->FUN {})
-                                (vm/->PRIM nil)
+                                (vm/->PRIM nil 1)
                                 (vm/->SET-CC)
                                 (vm/->CC)
                                 (vm/->HALT)
@@ -82,7 +82,7 @@
     (is (= (vm/current-instruction (state 14))
            (vm/->FUN {})))
     (is (= (vm/current-instruction (state 15))
-           (vm/->PRIM nil)))
+           (vm/->PRIM nil 1)))
     (is (= (vm/current-instruction (state 16))
            (vm/->SET-CC)))
     (is (= (vm/current-instruction (state 17))
@@ -108,7 +108,7 @@
                                 (vm/->ARGS 3 'bar)
                                 (vm/->ARGS* 3 'baz)
                                 (vm/->FUN {})
-                                (vm/->PRIM nil)
+                                (vm/->PRIM nil 1)
                                 (vm/->SET-CC)
                                 (vm/->CC)
                                 (vm/->HALT)
@@ -385,56 +385,55 @@
             :env env}))))
 
 (deftest PRIM-step-01
-  (let [inst (vm/->PRIM 'vector)
-        state {:stack '(1 2 3) :n-args 0 :store []}]
+  (let [inst (vm/->PRIM 'vector 0)
+        state {:stack '(1 2 3) :store []}]
     (is (= (vm/-step inst state)
            (assoc state :stack
                   (conj (:stack state) (mem/->VmVector 0 0)))))))
 
 (deftest PRIM-step-02
-  (let [inst (vm/->PRIM 'vector)
-        state {:stack '(1 2 3) :n-args 1 :store []}]
+  (let [inst (vm/->PRIM 'vector 1)
+        state {:stack '(1 2 3)  :store []}]
     (is (= (vm/-step inst state)
            (assoc state
              :stack (conj '(2 3) (mem/->VmVector 0 1))
              :store [1])))))
 
 (deftest PRIM-step-03
-  (let [inst (vm/->PRIM 'vector)
-        state {:stack '(1 2 3) :n-args 3 :store []}]
+  (let [inst (vm/->PRIM 'vector 3)
+        state {:stack '(1 2 3) :store []}]
     (is (= (vm/-step inst state)
            (assoc state
              :stack (list (mem/->VmVector 0 3))
              :store [3 2 1])))))
 
 (deftest PRIM-step-04
-  (let [inst (vm/->PRIM 'make-vector)
-        state {:stack '(0 1 2 3) :n-args 1 :store []}]
+  (let [inst (vm/->PRIM 'make-vector 1)
+        state {:stack '(0 1 2 3) :store []}]
     (is (= (vm/-step inst state)
            (assoc state
              :stack (conj (rest (:stack state)) (mem/->VmVector 0 0))
              :store [])))))
 
 (deftest PRIM-step-05
-  (let [inst (vm/->PRIM 'make-vector)
-        state {:stack '(1 1 2 3) :n-args 1 :store []}]
+  (let [inst (vm/->PRIM 'make-vector 1)
+        state {:stack '(1 1 2 3) :store []}]
     (is (= (vm/-step inst state)
            (assoc state
              :stack (conj (rest (:stack state)) (mem/->VmVector 0 1))
              :store [nil])))))
 
 (deftest PRIM-step-06
-  (let [inst (vm/->PRIM 'make-vector)
-        state {:stack '(5 1 2 3) :n-args 1 :store []}]
+  (let [inst (vm/->PRIM 'make-vector 1)
+        state {:stack '(5 1 2 3) :store []}]
     (is (= (vm/-step inst state)
            (assoc state
              :stack (conj (rest (:stack state)) (mem/->VmVector 0 5))
              :store [nil nil nil nil nil])))))
 
 (deftest PRIM-step-07
-  (let [inst (vm/->PRIM 'vector-ref)
+  (let [inst (vm/->PRIM 'vector-ref 2)
         state {:stack (list 0 (mem/->VmVector 0 5) 10)
-               :n-args 2
                :store [1 2 3 4 5]}]
     (is (= (vm/-step inst state)
            (assoc state
@@ -442,9 +441,8 @@
              :store [1 2 3 4 5])))))
 
 (deftest PRIM-step-08
-  (let [inst (vm/->PRIM 'vector-ref)
+  (let [inst (vm/->PRIM 'vector-ref 2)
         state {:stack (list 1 (mem/->VmVector 0 5) 10)
-               :n-args 2
                :store [1 2 3 4 5]}]
     (is (= (vm/-step inst state)
            (assoc state
@@ -452,9 +450,8 @@
              :store [1 2 3 4 5])))))
 
 (deftest PRIM-step-09
-  (let [inst (vm/->PRIM 'vector-set!)
+  (let [inst (vm/->PRIM 'vector-set! 3)
         state {:stack (list 6 0 (mem/->VmVector 0 5) 10)
-               :n-args 3
                :store [1 2 3 4 5]}]
     (is (= (vm/-step inst state)
            (assoc state
@@ -462,9 +459,8 @@
              :store [6 2 3 4 5])))))
 
 (deftest PRIM-step-10
-  (let [inst (vm/->PRIM 'vector-set!)
+  (let [inst (vm/->PRIM 'vector-set! 3)
         state {:stack (list 6 3 (mem/->VmVector 0 5) 10)
-               :n-args 3
                :store [1 2 3 4 5]}]
     (is (= (vm/-step inst state)
            (assoc state
@@ -472,9 +468,8 @@
              :store [1 2 3 6 5])))))
 
 (deftest PRIM-step-11
-  (let [inst (vm/->PRIM 'vector-set!)
+  (let [inst (vm/->PRIM 'vector-set! 3)
         state {:stack (list 6 4 (mem/->VmVector 0 5) 10)
-               :n-args 3
                :store [1 2 3 4 5]}]
     (is (= (vm/-step inst state)
            (assoc state
@@ -482,33 +477,29 @@
              :store [1 2 3 4 6])))))
 
 (deftest PRIM-step-12
-  (let [inst (vm/->PRIM 'vector-ref)
+  (let [inst (vm/->PRIM 'vector-ref 2)
         state {:stack (list -1 (mem/->VmVector 0 5) 10)
-               :n-args 2
                :store [1 2 3 4 5]}]
     (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
          (vm/-step inst state)))))
 
 (deftest PRIM-step-13
-  (let [inst (vm/->PRIM 'vector-ref)
+  (let [inst (vm/->PRIM 'vector-ref 2)
         state {:stack (list 5 (mem/->VmVector 0 5) 10)
-               :n-args 2
                :store [1 2 3 4 5]}]
     (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
          (vm/-step inst state)))))
 
 (deftest PRIM-step-14
-  (let [inst (vm/->PRIM 'vector-set!)
+  (let [inst (vm/->PRIM 'vector-set! 3)
         state {:stack (list 0 -1 (mem/->VmVector 0 5) 10)
-               :n-args 3
                :store [1 2 3 4 5]}]
     (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
          (vm/-step inst state)))))
 
 (deftest PRIM-step-15
-  (let [inst (vm/->PRIM 'vector-set!)
+  (let [inst (vm/->PRIM 'vector-set! 3)
         state {:stack (list 0 5 (mem/->VmVector 0 5) 10)
-               :n-args 3
                :store [1 2 3 4 5]}]
     (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
          (vm/-step inst state)))))

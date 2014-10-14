@@ -148,7 +148,7 @@
   (test-gen 'FUN '[my-fun] {:fun 'my-fun}))
 
 (deftest gen-PRIM
-  (test-gen 'PRIM [println] {:name println}))
+  (test-gen 'PRIM [println 1] {:name println :n-args 1}))
 
 (deftest gen-SET-CC
   (test-gen 'SET-CC [] {}))

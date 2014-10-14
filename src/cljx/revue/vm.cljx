@@ -200,15 +200,18 @@
    :side-effects? side-effects?})
 
 (defn primitive?
-  "Returns a true value if `prim` is a primitive defined either in
-  `env` or locally that can be invoked with `n-args` arguments.  If
+  "Returns `prim` if `prim` is the name of a primitive defined either
+  in `env` or locally that can be invoked with `n-args` arguments.  If
   `n-args` is nil the primitive can be invoked with an arbitrary
   number of arguments.  Currently there is no support for primitives
   with a variable but bounded number of arguments, and also not for
   locally defined primitives."
   [prim env n-args]
   (let [prim-desc (get @primitive-table prim false)]
-    (and prim-desc (= (:n-args prim-desc) n-args))))
+    (if (and prim-desc (or (not (:n-args prim-desc))
+                           (= (:n-args prim-desc) n-args)))
+      prim-desc
+      false)))
 
 (defn define-primitive
   "Define primitive `name` that takes exactly `n-args` arguments and
@@ -225,9 +228,13 @@
   (fn [store & args]
     (mem/new-vector store args)))
 
-(define-primitive 'make-vector nil
+(define-primitive 'make-vector 1
   (fn [store n-elts]
     (mem/new-vector store (repeat n-elts nil))))
+
+(define-primitive 'vector-length 1
+  (fn [store v]
+    [(mem/vector-length store v) store]))
 
 (define-primitive 'vector-ref 2
   (fn [store v i]
@@ -711,13 +718,13 @@
 ;;; access to the memory system; most other functions are better
 ;;; implemented as operators (see `OP` below).
 
-(defrecord PRIM [name]
+(defrecord PRIM [name n-args]
   Object
   (toString [this]
-    (str (-opcode this)))
+    (str (-opcode this) " " (:name this) " " (:n-args this)))
   VmInst
   (-step [this vm-state]
-    (let [{:keys [n-args stack]} vm-state
+    (let [{:keys [stack]} vm-state
           prim-descr (get @primitive-table (:name this))
           _ (assert prim-descr (str "No primitive `" (:name this) "`."))
           _ (when (:n-args prim-descr)
@@ -735,7 +742,7 @@
  (-opcode [this]
     'PRIM)
   (-args [this]
-    [(:name this)]))
+    ((juxt :name :n-args) this)))
 
 ;;; `SET-CC` pops a value off the stack and uses this value as the new
 ;;; continuation.
@@ -899,7 +906,7 @@
    'ARGS    {:constructor ->ARGS   :arity 2}
    'ARGS*   {:constructor ->ARGS*  :arity 2}
    'FUN     {:constructor ->FUN    :arity 1}
-   'PRIM    {:constructor ->PRIM   :arity 1}
+   'PRIM    {:constructor ->PRIM   :arity 2}
    'SET-CC  {:constructor ->SET-CC :arity 0}
    'CC      {:constructor ->CC     :arity 0}
    'HALT    {:constructor ->HALT   :arity 0}
@@ -1003,7 +1010,8 @@
   i.e., the topmost stack value of the first `:stopped?` frame in the
   trace.  This function is non-lazy and will therefore loop for
   non-terinating programs."
-  (first (:stack (stopped-frame trace))))
+  (let [frame (stopped-frame trace)]
+    (mem/->clojure (first (:stack frame)) (:store frame))))
 
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for

@@ -224,6 +224,11 @@
         new-store (into store contents)]
     [(->VmVector address size) new-store]))
 
+(defn vector-length
+  "Return the length of vector `v`"
+  [store v]
+  (-size v store))
+
 (defn vector-ref
   "Return the element at position `i` of vector `v` in `store`."
   [store v i]

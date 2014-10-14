@@ -491,10 +491,10 @@
       (cond
        ;; Invoking a primitive function
        prim
-       (if (and (not val?) (not (:side-effects prim)))
+       (if (and (not val?) (not (:side-effects? prim)))
          (comp-sequence args env false more?)
          (gen-seq (comp-parameters args env)
-                  (gen 'PRIM prim)
+                  (gen 'PRIM (:name  prim) (count args))
                   (when-not val? (gen 'POP))
                   (when-not more? (gen-return))))
        ;; Invoking an operator
