@@ -134,6 +134,11 @@
   ([op]
      (operator? op nil)))
 
+;;; @MargDisable
+;;; TODO: We should wrap operators into a data structure, similarly to
+;;; primitives.
+;;; @MargEnable
+
 (defn define-operator
   "Defines operator `name` that takes either exactly `n-args` or
   between `min-args` and `max-args` arguments.  When the operator is
@@ -165,19 +170,52 @@
 ;;; VM Primitives
 ;;; =============
 
-(defn primitive? [form env n-args]
-  ;;; TODO: Implement this!
-  nil)
+;;; Primitives are functions that operate on the raw VM memory
+;;; representation, i.e., they receive their arguments as raw VM
+;;; values and a store.  This means that they can allocate and modify
+;;; memory, and also that they are responsible for returning a
+;;; correctly updated store.
+
+(def primitive-table
+  "A table containing all primitives defined for the VM."
+  (atom {}))
 
 (defn make-prim
   "Create a new primitive instruction."
-  [symbol n-args opcode always? side-effects?]
+  [name n-args clj-fun constant-value? constant-value side-effects?]
   {:type :primitive-instruction
-   :symbol symbol
+   ;; The name of this primitive
+   :name name
+   ;; The number of arguments this primitive accepts
    :n-args n-args
-   :opcode opcode
-   :always? always?
+   ;; The Clojure function executed for this primitive
+   :clj-fun clj-fun
+   ;; Truthy if the value returned by the primitive is always the same
+   :constant-value? constant-value
+   ;; The constant value, if `:constant-value?` is truthy
+   :constant-value constant-value
+   ;; Truthy if the primitive has side effects
    :side-effects? side-effects?})
+
+(defn primitive?
+  "Returns a true value if `prim` is a primitive defined either in
+  `env` or locally that can be invoked with `n-args` arguments.
+  Currently there is no support for primitives with a variable number
+  of arguments, and also not for locally defined primitives."
+  [prim env n-args]
+  (let [prim-desc (get @primitive-table prim false)]
+    (and prim-desc (= (:n-args prim-desc) n-args))))
+
+(defn define-primitive
+  "Define primitive `name` that takes exactly `n-args` arguments and
+  evaluates `code` when invoked."
+  [name n-args code & {:keys [constant-value? constant-value side-effects?]
+                       :or {constant-value? false
+                            constant-value nil
+                            side-effects? true}}]
+  (swap! operator-table assoc name
+         (make-prim name n-args code
+                    constant-value? constant-value side-effects?)))
 
 ;;; The Assembler (Well, Not Yet)
 ;;; =============================
@@ -650,7 +688,7 @@
 
 ;;; TODO: Should not contain clojure code but a name, referring to the
 ;;; prim-table...
-(defrecord PRIM [clj-code]
+(defrecord PRIM [name]
   Object
   (toString [this]
     (str (-opcode this)))
@@ -658,15 +696,20 @@
   (-step [this vm-state]
     (let [{:keys [n-args stack]} vm-state
           [raw-args new-stack] (split-at n-args stack)
-          [result new-store] (apply (:clj-code this) (:store vm-state) raw-args)]
+          prim-descr (get @primitive-table (:name this))
+          _ (assert (= n-args (:n-args prim-descr))
+                    (str "Primitive " (:name this)
+                         " called with wrong number of arguments."))
+          [result new-store] (apply (:clj-fun prim-descr)
+                                    (:store vm-state) raw-args)]
       (assoc vm-state
         :stack (conj new-stack result)
         :store new-store)))
   VmSeq
-  (-opcode [this]
+ (-opcode [this]
     'PRIM)
   (-args [this]
-    [:clj-code]))
+    [:name]))
 
 ;;; `SET-CC` pops a value off the stack and uses this value as the new
 ;;; continuation.
