@@ -216,7 +216,7 @@
       :cont nil :value nil :effects []}))
 
 (defn set-boxed-value [name value-form {:keys [env store cont] :as state} op-name]
-  (let [[box new-store] (mem/new-box nil store)]
+  (let [[box new-store] (mem/new-box store nil)]
     (when-not (symbol? name)
       (util/error (str op-name ": first argument must be a symbol.")))
     (assoc state
@@ -284,10 +284,11 @@
      ::set!
      (assoc state
        :form nil
-       :store (mem/box-set! (if (instance? Proc value)
+       :store (mem/box-set! store
+                            (nth form 2)
+                            (if (instance? Proc value)
                               (assoc value :name (nth form 1))
-                              value)
-                            (nth form 2) store))
+                              value)))
      ;; Sequence
      begin
      (cond

@@ -374,16 +374,145 @@
                :reason "Function foo called with 2 argument(s), but wants at least 3."))))))
 
 (deftest FUN-step-01
-  (testing "FUN"
-    (let [f (vm/make-fun :code (list (vm/->ARGS 1 'foo)
-                                     (vm/->RETURN 'foo))
-                         :env (util/env [1 2 3])
-                         :name 'foo
-                         :args '(x))
-          env  (util/env [5 6])]
-      (is (= (vm/-step (vm/->FUN f) {:stack '(1 2) :env env})
-             {:stack (list (assoc f :env env) 1 2)
-              :env env})))))
+  (let [f (vm/make-fun :code (list (vm/->ARGS 1 'foo)
+                                   (vm/->RETURN 'foo))
+                       :env (util/env [1 2 3])
+                       :name 'foo
+                       :args '(x))
+        env  (util/env [5 6])]
+    (is (= (vm/-step (vm/->FUN f) {:stack '(1 2) :env env})
+           {:stack (list (assoc f :env env) 1 2)
+            :env env}))))
+
+(deftest PRIM-step-01
+  (let [inst (vm/->PRIM 'vector)
+        state {:stack '(1 2 3) :n-args 0 :store []}]
+    (is (= (vm/-step inst state)
+           (assoc state :stack
+                  (conj (:stack state) (mem/->VmVector 0 0)))))))
+
+(deftest PRIM-step-02
+  (let [inst (vm/->PRIM 'vector)
+        state {:stack '(1 2 3) :n-args 1 :store []}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack (conj '(2 3) (mem/->VmVector 0 1))
+             :store [1])))))
+
+(deftest PRIM-step-03
+  (let [inst (vm/->PRIM 'vector)
+        state {:stack '(1 2 3) :n-args 3 :store []}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack (list (mem/->VmVector 0 3))
+             :store [3 2 1])))))
+
+(deftest PRIM-step-04
+  (let [inst (vm/->PRIM 'make-vector)
+        state {:stack '(0 1 2 3) :n-args 1 :store []}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack (conj (rest (:stack state)) (mem/->VmVector 0 0))
+             :store [])))))
+
+(deftest PRIM-step-05
+  (let [inst (vm/->PRIM 'make-vector)
+        state {:stack '(1 1 2 3) :n-args 1 :store []}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack (conj (rest (:stack state)) (mem/->VmVector 0 1))
+             :store [nil])))))
+
+(deftest PRIM-step-06
+  (let [inst (vm/->PRIM 'make-vector)
+        state {:stack '(5 1 2 3) :n-args 1 :store []}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack (conj (rest (:stack state)) (mem/->VmVector 0 5))
+             :store [nil nil nil nil nil])))))
+
+(deftest PRIM-step-07
+  (let [inst (vm/->PRIM 'vector-get)
+        state {:stack (list 0 (mem/->VmVector 0 5) 10)
+               :n-args 2
+               :store [1 2 3 4 5]}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack '(1 10)
+             :store [1 2 3 4 5])))))
+
+(deftest PRIM-step-08
+  (let [inst (vm/->PRIM 'vector-get)
+        state {:stack (list 1 (mem/->VmVector 0 5) 10)
+               :n-args 2
+               :store [1 2 3 4 5]}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack '(2 10)
+             :store [1 2 3 4 5])))))
+
+(deftest PRIM-step-09
+  (let [inst (vm/->PRIM 'vector-set!)
+        state {:stack (list 6 0 (mem/->VmVector 0 5) 10)
+               :n-args 3
+               :store [1 2 3 4 5]}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack '(nil 10)
+             :store [6 2 3 4 5])))))
+
+(deftest PRIM-step-10
+  (let [inst (vm/->PRIM 'vector-set!)
+        state {:stack (list 6 3 (mem/->VmVector 0 5) 10)
+               :n-args 3
+               :store [1 2 3 4 5]}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack '(nil 10)
+             :store [1 2 3 6 5])))))
+
+(deftest PRIM-step-11
+  (let [inst (vm/->PRIM 'vector-set!)
+        state {:stack (list 6 4 (mem/->VmVector 0 5) 10)
+               :n-args 3
+               :store [1 2 3 4 5]}]
+    (is (= (vm/-step inst state)
+           (assoc state
+             :stack '(nil 10)
+             :store [1 2 3 4 6])))))
+
+(deftest PRIM-step-12
+  (let [inst (vm/->PRIM 'vector-get)
+        state {:stack (list -1 (mem/->VmVector 0 5) 10)
+               :n-args 2
+               :store [1 2 3 4 5]}]
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+         (vm/-step inst state)))))
+
+(deftest PRIM-step-13
+  (let [inst (vm/->PRIM 'vector-get)
+        state {:stack (list 5 (mem/->VmVector 0 5) 10)
+               :n-args 2
+               :store [1 2 3 4 5]}]
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+         (vm/-step inst state)))))
+
+(deftest PRIM-step-14
+  (let [inst (vm/->PRIM 'vector-set!)
+        state {:stack (list 0 -1 (mem/->VmVector 0 5) 10)
+               :n-args 3
+               :store [1 2 3 4 5]}]
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+         (vm/-step inst state)))))
+
+(deftest PRIM-step-15
+  (let [inst (vm/->PRIM 'vector-set!)
+        state {:stack (list 0 5 (mem/->VmVector 0 5) 10)
+               :n-args 3
+               :store [1 2 3 4 5]}]
+    (is (thrown? #+clj java.lang.AssertionError #+cljs js/Error
+         (vm/-step inst state)))))
+
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

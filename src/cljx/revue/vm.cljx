@@ -172,7 +172,8 @@
 
 ;;; Primitives are functions that operate on the raw VM memory
 ;;; representation, i.e., they receive their arguments as raw VM
-;;; values and a store.  This means that they can allocate and modify
+;;; values.  The first argument of a primitive is always a store.
+;;; This means that they can allocate and modify
 ;;; memory, and also that they are responsible for returning a
 ;;; correctly updated store.
 
@@ -186,7 +187,8 @@
   {:type :primitive-instruction
    ;; The name of this primitive
    :name name
-   ;; The number of arguments this primitive accepts
+   ;; The number of arguments this primitive accepts, or `nil` if the
+   ;; primitive takes an arbitrary number of arguments
    :n-args n-args
    ;; The Clojure function executed for this primitive
    :clj-fun clj-fun
@@ -199,9 +201,11 @@
 
 (defn primitive?
   "Returns a true value if `prim` is a primitive defined either in
-  `env` or locally that can be invoked with `n-args` arguments.
-  Currently there is no support for primitives with a variable number
-  of arguments, and also not for locally defined primitives."
+  `env` or locally that can be invoked with `n-args` arguments.  If
+  `n-args` is nil the primitive can be invoked with an arbitrary
+  number of arguments.  Currently there is no support for primitives
+  with a variable but bounded number of arguments, and also not for
+  locally defined primitives."
   [prim env n-args]
   (let [prim-desc (get @primitive-table prim false)]
     (and prim-desc (= (:n-args prim-desc) n-args))))
@@ -213,9 +217,25 @@
                        :or {constant-value? false
                             constant-value nil
                             side-effects? true}}]
-  (swap! operator-table assoc name
+  (swap! primitive-table assoc name
          (make-prim name n-args code
                     constant-value? constant-value side-effects?)))
+
+(define-primitive 'vector nil
+  (fn [store & args]
+    (mem/new-vector store args)))
+
+(define-primitive 'make-vector nil
+  (fn [store n-elts]
+    (mem/new-vector store (repeat n-elts nil))))
+
+(define-primitive 'vector-get 2
+  (fn [store v i]
+    [(mem/vector-get store v i) store]))
+
+(define-primitive 'vector-set! 3
+  (fn [store v i new-value]
+    [nil (mem/vector-set! store v i new-value)]))
 
 ;;; The Assembler (Well, Not Yet)
 ;;; =============================
@@ -678,16 +698,10 @@
 ;;; implemented as Clojure functions that receive the store as first
 ;;; argument, the raw VM values as other arguments, and they have to
 ;;; return a result that satisfies the `StoredData` protocol and a new
-;;; store.  No checking is performed by the VM whether the primitive
-;;; was invoked with the correct number of arguments; therefore bad
-;;; calls to primitives may crash the VM.  Primitives are useful for
-;;; functions that need low-level access to the memory system; most
-;;; functions are better implemented as operators (see `OP` below); in
-;;; particular user-visible functionality should never be implemented
-;;; as primitive.
+;;; store.  Primitives are useful for functions that need low-level
+;;; access to the memory system; most other functions are better
+;;; implemented as operators (see `OP` below).
 
-;;; TODO: Should not contain clojure code but a name, referring to the
-;;; prim-table...
 (defrecord PRIM [name]
   Object
   (toString [this]
@@ -695,13 +709,16 @@
   VmInst
   (-step [this vm-state]
     (let [{:keys [n-args stack]} vm-state
-          [raw-args new-stack] (split-at n-args stack)
           prim-descr (get @primitive-table (:name this))
-          _ (assert (= n-args (:n-args prim-descr))
-                    (str "Primitive " (:name this)
-                         " called with wrong number of arguments."))
+          _ (assert prim-descr (str "No primitive `" (:name this) "`."))
+          _ (when (:n-args prim-descr)
+              (assert (= n-args (:n-args prim-descr))
+                      (str "Primitive `" (:name this)
+                           "` called with wrong number of arguments: "
+                           (:n-args prim-descr) " != " n-args)))
+          [raw-args new-stack] (split-at n-args stack)
           [result new-store] (apply (:clj-fun prim-descr)
-                                    (:store vm-state) raw-args)]
+                                    (:store vm-state) (reverse raw-args))]
       (assoc vm-state
         :stack (conj new-stack result)
         :store new-store)))

@@ -139,17 +139,21 @@
   (-size [this store]
     1))
 
+;;; @MargDisable
+;;; TODO: Switch the order of arguments!
+;;; @MargEnable
+
 (defn new-box
   "Allocate a new `VmBox` cell.  The `value` parameter should be a
   stored value.  Return the new box reference and the new store."
-  [value store]
+  [store value]
   (let [address (count store)
         new-store (conj store value)]
     [(->VmBox address) new-store]))
 
 (defn box-set!
   "Change the value stored in a box."
-  [new-value box store]
+  [store box new-value]
   (assoc store (-address box store) new-value))
 
 ;;; The type `VmCons` represents references to a cons cell on the
@@ -213,12 +217,39 @@
 
   There is no way to create an uninitialized vector.  To create an
   vector of a prespecified size with a given element, do something
-  like `(new-vector (repeat 10 false) store)`"
-  [contents store]
+  like `(new-vector store (repeat 10 false))`"
+  [store contents]
   (let [address (count store)
         size (count contents)
         new-store (into store contents)]
     [(->VmVector address size) new-store]))
+
+(defn vector-get
+  "Return the element at position `i` of vector `v` in `store`."
+  [store v i]
+  #_
+  (assert (satisfies? VmVector v)
+          (str "Called vector-get on " v
+               " which is not a vector."))
+  ;; It might be better to throw IndexOutOfBoundsException here...
+  (assert (< -1 i (-size v store))
+          (str "Index for vector-get out of bounds: " i
+               " (max " (-size v store) ")."))
+  (nth store (+ (-address v store) i)))
+
+(defn vector-set!
+  "Set element `i` of vector `v` to `new-value` in `store`.  More
+  precisely, return a new store that is identical to `store` except
+  for the address corresponding to v[i] which is `new-value`."
+  [store v i new-value]
+  #_
+  (assert (satisfies? VmVector v)
+          (str "Called vector-set! on " v
+               " which is not a vector."))
+  (assert (< -1 i (-size v store))
+          (str "Index for vector-set! out of bounds: " i
+               " (max " (-size v store) ")."))
+  (assoc store (+ (-address v store) i) new-value))
 
 ;;; The type `VmMap` is the VM representation of maps.  To simplify
 ;;; the implementation, we define a map as a reference to a vector
@@ -240,7 +271,7 @@
   key-value pairs; these pairs have to be already converted into
   stored data.  Return a new map reference and the new store."
   [contents store]
-  (let [[v new-store] (new-vector contents store)]
+  (let [[v new-store] (new-vector store contents)]
     [(->VmMap v) new-store]))
 
 ;;; We define the `->clojure` function as a wrapper around the
@@ -316,10 +347,10 @@
   (-->vm [this store]
     ;; Quick path for allocating vectors containing atomic data.
     (if (every? util/atomic? this)
-      (new-vector this store)
+      (new-vector store this)
       (let [[store-vec new-store]
             (convert-to-store-vector this store)]
-        (new-vector store-vec new-store))))
+        (new-vector new-store store-vec))))
   #+clj clojure.lang.MapEntry ;;; ClojureScript does not have map entries
   #+clj
   (-->vm [this store]

@@ -146,7 +146,7 @@
 
 (deftest vm-box-01
   (testing "Create VmBox instances."
-    (let [[vm-box state] (mem/new-box 1 [])]
+    (let [[vm-box state] (mem/new-box [] 1)]
       (is (= (:address vm-box) 0))
       (is (= state [1])))))
 
@@ -221,11 +221,11 @@
       (is (= (:address vm-vector) 0))
       (is (= (:size vm-vector) 0))
       (is (= state [])))    
-    (let [[vm-vector state] (mem/new-vector [1 2 3] [])]
+    (let [[vm-vector state] (mem/new-vector [] [1 2 3])]
       (is (= (:address vm-vector) 0))
       (is (= (:size vm-vector) 3))
       (is (= state [1 2 3])))
-    (let [[vm-vector state] (mem/new-vector (repeat 5 false) [])]
+    (let [[vm-vector state] (mem/new-vector [] (repeat 5 false))]
       (is (= (:address vm-vector) 0))
       (is (= (:size vm-vector) 5))
       (is (= state [false false false false false])))))
@@ -272,7 +272,7 @@
 (deftest ->clojure-vector
   (testing "Convert VmVector to Clojure"
     (let [check (fn [v]
-                  (is (= (apply mem/->clojure (mem/new-vector v [])) v)))]
+                  (is (= (apply mem/->clojure (mem/new-vector [] v)) v)))]
       (check [])
       (check [1])
       (check [2 3 4])
@@ -402,21 +402,21 @@
   (testing "Random roundtrip test for boxes."
     (prop/for-all [d gen/string store (gen-state)]
       (let [[vm-val store] (mem/->vm d [])]
-        (is (= (apply mem/->clojure (mem/new-box vm-val store)) d))))))
+        (is (= (apply mem/->clojure (mem/new-box store vm-val)) d))))))
 
 (defspec ->clojure->vm-box-02
   (if *large-tests* *large-number-of-repetitions* 10)
   (testing "Random roundtrip test for boxes."
     (prop/for-all [d gen/int store (gen-state)]
       (let [[vm-val store] (mem/->vm d [])]
-        (is (= (apply mem/->clojure (mem/new-box vm-val store)) d))))))
+        (is (= (apply mem/->clojure (mem/new-box store vm-val)) d))))))
 
 (defspec ->clojure->vm-box-03
   (if *large-tests* *large-number-of-repetitions* 10)
   (testing "Random roundtrip test for boxes."
     (prop/for-all [d nested-collection store (gen-state)]
       (let [[vm-val store] (mem/->vm d [])]
-        (is (= (apply mem/->clojure (mem/new-box vm-val store)) d))))))
+        (is (= (apply mem/->clojure (mem/new-box store vm-val)) d))))))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
