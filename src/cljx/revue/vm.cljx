@@ -85,7 +85,7 @@
      :fun f
      :pc 0
      :global-env global-env
-     :env ()
+     :env (env)
      :stack ()
      :store store
      :n-args 0
@@ -277,6 +277,10 @@
   functions that extract a usable form of the arguments)."
   (-opcode [this])
   (-args [this]))
+
+(defprotocol VmFun
+  "Marker protocol to denote instructions that have nested bytecode."
+  (-assemble [this]))
 
 (defprotocol ResolveLabel
   "Implemented by instructions that take labels as arguments and need
@@ -688,6 +692,11 @@
   (-step [this vm-state]
     (update-in vm-state [:stack] conj
                (assoc fun :env (:env vm-state))))
+  VmFun
+  (-assemble [this]
+    (println "-assemble" (:type (:fun this)))
+    ;(assoc this :fun (assemble (:fun this)))
+    this)
   VmSeq
   (-opcode [this]
     'FUN)
@@ -887,8 +896,7 @@
    'CALLJ   {:constructor ->CALLJ  :arity 1}
    'ARGS    {:constructor ->ARGS   :arity 2}
    'ARGS*   {:constructor ->ARGS*  :arity 2}
-   'FUN     {:constructor ->FUN    :arity 1
-             :arg-fun #(map assemble-inst %1)}
+   'FUN     {:constructor ->FUN    :arity 1}
    'PRIM    {:constructor ->PRIM   :arity 1}
    'SET-CC  {:constructor ->SET-CC :arity 0}
    'CC      {:constructor ->CC     :arity 0}
@@ -896,22 +904,25 @@
    'OP      {:constructor ->OP     :arity 2}})
 
 (defn assemble-inst [inst]
-  (if (or (satisfies? VmInst inst) (satisfies? VmLabel inst))
-    inst
-    (let [[opcode & args] inst]
-      (if-let [opcode-descr (get opcodes opcode)]
+  (let [inst2
         (cond
-         ;; Operator arity and call arity match
-         (= (:arity opcode-descr) (count args))
-         (apply (:constructor opcode-descr)
-                (if-let [arg-fun (:arg-fun opcode-descr)]
-                  (list (apply arg-fun args))
-                  args))
-         ;; Wrong arity
+         (or (satisfies? VmInst inst) (satisfies? VmLabel inst))
+         inst
          :else
-         (util/error "Opcode " opcode " applied to " (count args)
-                     " arguments, but wants " (:arity opcode-descr)))
-        (util/error "Unknown opcode " opcode " in " inst ".")))))
+         (let [[opcode & args] inst]
+           (if-let [opcode-descr (get opcodes opcode)]
+             (cond
+              ;; Operator arity and call arity match
+              (= (:arity opcode-descr) (count args))
+              (apply (:constructor opcode-descr) args)
+              ;; Wrong arity
+              :else
+              (util/error "Opcode " opcode " applied to " (count args)
+                          " arguments, but wants " (:arity opcode-descr)))
+             (util/error "Unknown opcode " opcode " in " inst "."))))]
+    (if (satisfies? VmFun inst2)
+      (-assemble inst2)
+      inst2)))
 
 (defn find-label-indices [insts]
   (loop [index 0
@@ -934,18 +945,24 @@
      :else
      inst)))
 
-(defn assemble
-  "Assemble a sequence of instructions from Clojure lists into
-  `VmInst` data structures."
-  [{:keys [code] :as bytecode}]
-  (assert (= (:type bytecode) :bytecode-function)
-          (str  "Cannot assemble " bytecode
-                ", only bytecode functions are supported."))
+(defn assemble-bytecode [code]
   (let [pass-1 (map assemble-inst code)
         label-indices (find-label-indices pass-1)
         new-code (vec (keep (resolve-label-indices label-indices)
                             pass-1))]
-    (assoc bytecode :code new-code :label-indices label-indices)))
+    [new-code label-indices]))
+
+(defn assemble
+  "Assemble a sequence of instructions from Clojure lists into
+  `VmInst` data structures."
+  [{:keys [type code] :as bytecode}]
+  (cond (= type :bytecode-function)
+        (let [[assembled-code label-indices] (assemble-bytecode code)]
+          (assoc bytecode
+            :code assembled-code
+            :label-indices label-indices))
+        :else
+        bytecode))
 
 ;;; The VM Proper
 ;;; =============

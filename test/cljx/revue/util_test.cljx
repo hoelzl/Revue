@@ -212,6 +212,19 @@
       (is (= (assoc-in env [2 2] 10) [[1 2 3] [4 5] [6 7 10 9]]))
       (is (= (assoc-in env [2 3] 10) [[1 2 3] [4 5] [6 7 8 10]])))))
 
+(deftest Env-12
+  (testing "Env: assoc-in"
+    (let [env (util/->Env [[6 7 8 9] [4 5] [1 2 3]])]
+      (is (satisfies? util/ILocalEnv (assoc-in env [0 0] 10)))
+      (is (satisfies? util/ILocalEnv (assoc-in env [0 1] 10)))
+      (is (satisfies? util/ILocalEnv (assoc-in env [0 2] 10)))
+      (is (satisfies? util/ILocalEnv (assoc-in env [1 0] 10)))
+      (is (satisfies? util/ILocalEnv (assoc-in env [1 1] 10)))
+      (is (satisfies? util/ILocalEnv (assoc-in env [2 0] 10)))
+      (is (satisfies? util/ILocalEnv (assoc-in env [2 1] 10)))
+      (is (satisfies? util/ILocalEnv (assoc-in env [2 2] 10)))
+      (is (satisfies? util/ILocalEnv (assoc-in env [2 3] 10))))))
+
 (deftest env-1
   (testing "env"
     (let [env (util/env [1 2 3] [4 5] [6 7 8 9])]
