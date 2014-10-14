@@ -561,17 +561,20 @@
 
 (defn comp-show [form & {:keys [env assemble?]
                          :or {env (util/env) assemble? false}}]
-  (vm/show (:code (compile form :env env :assemble? assemble?))))
+  (vm/show (:code (compile form :env env :assemble? assemble?)))
+  nil)
 
 (defn comp-show-all [form & {:keys [env assemble?]
                              :or {env (util/env) assemble? false}}]
   (let [result (compile-all form :env env :assemble? assemble?)]
-    (vm/show (:code result))))
+    (vm/show (:code result)))
+  nil)
 
 (defn comp-show-str [string & {:keys [env assemble?]
                              :or {env (util/env) assemble? false}}]
   (let [result (compile-str string :env env :assemble? assemble?)]
-    (vm/show (:code result))))
+    (vm/show (:code result)))
+  nil)
 
 (defn run [& forms]
   (let [prog (compile-all forms :assemble? true)]

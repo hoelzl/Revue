@@ -251,13 +251,6 @@
 ;;; VM Instructions
 ;;; ===============
 
-;;; The function `show` displays code is a nicely formatted manner.
-;;; It is a wrapper around `-show` that takes care of types that don't
-;;; implement `VmShow`.  We need it here to debug errors in the
-;;; selection of the current instruction.
-
-(declare show)
-
 ;;; The function `->seq` converts an instruction into a sequence.  We
 ;;; need it in the definition of `-args` for functions.
 
@@ -270,6 +263,24 @@
   the VM."
   (-step [this vm-state]))
 
+;;; The variable `*indent*` is dynamically bound to determine the
+;;; indentation of nested instructions.
+
+(def ^:dynamic *indent* 1)
+
+(defprotocol VmShow
+  "Implemented by instructions and labels, that want to override the
+  default behavior of just printing the instruction preceeded by the
+  current indentation."
+  (-show [this indent]))
+
+(extend-type Object
+  VmShow
+  (-show [this indent]
+    (if (sequential? this)
+      (doseq [inst this] (show inst indent))
+      (println (str (util/indent indent) this)))))
+
 (defprotocol VmSeq
   "Implemented by instructions and labels so that they can be
   converted to sequences.  The function `-opcode` returns the opcode
@@ -278,8 +289,9 @@
   (-opcode [this])
   (-args [this]))
 
-(defprotocol VmFun
-  "Marker protocol to denote instructions that have nested bytecode."
+(defprotocol VmAssemble
+  "Protocol that allows instructions to specify how they want to be
+  assembled."
   (-assemble [this]))
 
 (defprotocol ResolveLabel
@@ -288,11 +300,6 @@
   instruction `this`, with all label arguments resolved according to
   `label-indices`."
   (-resolve-label [this label-indices]))
-
-;;; The variable `*indent*` is dynamically bound to determine the
-;;; indentation of nested instructions.
-
-(def ^:dynamic *indent* 1)
 
 (defprotocol VmLabel
   "Marker protocol for labels.")
@@ -320,7 +327,7 @@
   (-opcode [this]
     'LVAR)
   (-args [this]
-    [:frame :slot :name]))
+    ((juxt :frame :slot :name) this)))
 
 ;;; `LSET` pops a value off the stack and puts it into environment
 ;;; location `[frame slot]`.  `name` is the name of the variable in
@@ -343,7 +350,7 @@
   (-opcode [this]
     'LSET)
   (-args [this]
-    [:frame :slot :name]))
+    ((juxt :frame :slot :name) this)))
 
 ;;; `GVAR` pushes the value of the global variable `name` onto the
 ;;; stack.  If `name` is not defined in the global environment, `nil`
@@ -361,7 +368,7 @@
   (-opcode [this]
     'GVAR)
   (-args [this]
-    [:name]))
+    [(:name this)]))
 
 ;;; `GSET` stores the topmost value on the stack in global variable
 ;;; `name`.  It does not modify the stack.
@@ -377,7 +384,7 @@
   (-opcode [this]
     'GSET)
   (-args [this]
-    [:name]))
+    [(:name this)]))
 
 ;;; `POP` pops a value off the stack and discards it.
 (defrecord POP []
@@ -414,7 +421,7 @@
   (-opcode [this]
     'CONST)
   (-args [this]
-    [:value]))
+    [(:value this)]))
 
 (defn --resolve-label [this label-indices]
   (let [target (:target this)]
@@ -446,7 +453,7 @@
   (-opcode [this]
     'JUMP)
   (-args [this]
-    [(comp target-str :target)])
+    [(-> this :target target-str)])
   ResolveLabel
   (-resolve-label [this label-indices]
     (--resolve-label this label-indices)))
@@ -471,7 +478,7 @@
   (-opcode [this]
     'FJUMP)
   (-args [this]
-    [(comp target-str :target)])
+    [(-> this :target target-str)])
   ResolveLabel
   (-resolve-label [this label-indices]
     (--resolve-label this label-indices)))
@@ -496,7 +503,7 @@
   (-opcode [this]
     'TJUMP)
   (-args [this]
-    [(comp target-str :target)])
+    [(-> this :target target-str)])
   ResolveLabel
   (-resolve-label [this label-indices]
     (--resolve-label this label-indices)))
@@ -519,7 +526,7 @@
   (-opcode [this]
     'SAVE)
   (-args [this]
-    [(comp target-str :target)])
+    [(-> this :target target-str)])
   ResolveLabel
   (-resolve-label [this label-indices]
     (--resolve-label this label-indices)))
@@ -556,7 +563,7 @@
   (-opcode [this]
     'RETURN)
   (-args [this]
-    [:fun]))
+    [(:fun this)]))
 
 ;;; `CALLJ` calls a function by jumping to its entry point.  To this
 ;;; end, it pops the function that should be invoked from the stack
@@ -583,7 +590,7 @@
   (-opcode [this]
     'CALLJ)
   (-args [this]
-    [:n-args]))
+    [(:n-args this)]))
 
 (defn move-args-from-stack-to-env
   "If `n-rest-args` is falsy, pop `n-args` arguments from the stack
@@ -632,7 +639,7 @@
   (-opcode [this]
     'ARGS)
   (-args [this]
-    [:n-args :name]))
+    ((juxt :n-args :name) this)))
 
 ;;; `ARGS*` is the first bytecode instruction executed by functions
 ;;; with variable arity.  It checks that the number of required
@@ -662,7 +669,7 @@
   (-opcode [this]
     'ARGS*)
   (-args [this]
-    [:n-args :name]))
+    ((juxt :n-args :name) this)))
 
 ;;; `FUN` creates a new closure.  It takes the bytecode-compiled
 ;;; `function` and associates it with the current environment.
@@ -674,25 +681,12 @@
   ;; until ClojureScript provides a pretty printer this will have to
   ;; do.
   (toString [this]
-    (let [code (:code (:fun this))
-          line-break (str util/newline-str
-                          (util/indent (inc *indent*)))
-          label-break (str util/newline-str
-                           (util/indent *indent*))
-          line-breaks (map (fn [[prev cur]]
-                             (if (satisfies? VmLabel prev)
-                               (util/indent 1)
-                               (if (satisfies? VmLabel cur)
-                                 label-break
-                                 line-break)))
-                           (partition 2 1 (cons nil code)))]
-      (apply str (-opcode this)
-             (interleave line-breaks (map str code)))))
+    (str (-opcode this) " " ((-args this) this)))
   VmInst
   (-step [this vm-state]
     (update-in vm-state [:stack] conj
                (assoc fun :env (:env vm-state))))
-  VmFun
+  VmAssemble
   (-assemble [this]
     (println "-assemble" (:type (:fun this)))
     ;(assoc this :fun (assemble (:fun this)))
@@ -701,7 +695,12 @@
   (-opcode [this]
     'FUN)
   (-args [this]
-    [#(->> %1 :fun :code (map ->seq))]))
+    [(->> this :fun :code (map ->seq))])
+  VmShow
+  (-show [this indent]
+    (-show (-opcode this) indent)
+    (binding [*indent* (inc indent)]
+      (-show (:code (:fun this)) (inc indent)))))
 
 ;;; `PRIM` invokes a primitive instruction.  Primitives are
 ;;; implemented as Clojure functions that receive the store as first
@@ -735,7 +734,7 @@
  (-opcode [this]
     'PRIM)
   (-args [this]
-    [:name]))
+    [(:name this)]))
 
 ;;; `SET-CC` pops a value off the stack and uses this value as the new
 ;;; continuation.
@@ -822,7 +821,7 @@
   (-opcode [this]
     'OP)
   (-args [this]
-    [:name :n-args]))
+    ((juxt :name :n-args) this)))
 
 (defn opcode [inst]
   "Return the opcode of `inst`."
@@ -840,8 +839,7 @@
   [inst]
   (if (satisfies? VmLabel inst)
     (:name inst)
-    (list* (opcode inst)
-           (map #(% inst) (args inst)))))
+    (list* (opcode inst) (args inst))))
 
 (defn step
   "Run a single step of the VM starting in `vm-state`.  If the VM is
@@ -864,14 +862,17 @@
 ;;; Printing instructions
 ;;; =====================
 
+;;; The function `show` displays code is a nicely formatted manner.
+;;; It is a wrapper around `-show` that takes care of types that don't
+;;; implement `VmShow`.  We need it here to debug errors in the
+;;; selection of the current instruction.
+
 (defn show
-  "Print `indent` tabs followed by the string representation of
-  `thing`."
+  "Print the assembly code for `thing` indented by `indent` tabs by
+   calling `-show` on `thing`."
   [thing & [indent]]
   (let [indent (or indent *indent*)]
-    (if (sequential? thing)
-      (doseq [inst thing] (show inst indent))
-      (println (str (util/indent indent) (str thing)))))
+    (-show thing indent))
   thing)
 
 ;;; The Assembler
@@ -905,10 +906,8 @@
 
 (defn assemble-inst [inst]
   (let [inst2
-        (cond
-         (or (satisfies? VmInst inst) (satisfies? VmLabel inst))
+        (if (or (satisfies? VmInst inst) (satisfies? VmLabel inst))
          inst
-         :else
          (let [[opcode & args] inst]
            (if-let [opcode-descr (get opcodes opcode)]
              (cond
@@ -920,8 +919,11 @@
               (util/error "Opcode " opcode " applied to " (count args)
                           " arguments, but wants " (:arity opcode-descr)))
              (util/error "Unknown opcode " opcode " in " inst "."))))]
-    (if (satisfies? VmFun inst2)
+    (if (satisfies? VmAssemble inst2)
+      ;; We have an instruction with internal bytecode; call assemble
+      ;; recursively
       (-assemble inst2)
+      ;; A normal instruction, we're done
       inst2)))
 
 (defn find-label-indices [insts]
