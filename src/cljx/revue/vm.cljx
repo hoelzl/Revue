@@ -229,9 +229,9 @@
   (fn [store n-elts]
     (mem/new-vector store (repeat n-elts nil))))
 
-(define-primitive 'vector-get 2
+(define-primitive 'vector-ref 2
   (fn [store v i]
-    [(mem/vector-get store v i) store]))
+    [(mem/vector-ref store v i) store]))
 
 (define-primitive 'vector-set! 3
   (fn [store v i new-value]
@@ -274,7 +274,7 @@
   current indentation."
   (-show [this indent]))
 
-(extend-type Object
+(extend-type #+clj Object #+cljs object
   VmShow
   (-show [this indent]
     (if (sequential? this)

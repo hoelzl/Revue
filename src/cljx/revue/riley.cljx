@@ -607,6 +607,26 @@
            (loop (* n result) (- n 1)))))
  '(fact 10))
 
+#_
+(result
+ '(define (swap! vec i j)
+    (define temp (vector-ref vec i))
+    (vector-set! vec i (vector-ref vec j))
+    (vector-set! vec j temp)
+    vec)
+
+ '(define (bubblesort vec)
+    (let loop ((swapped? false))
+         (let loop2 ((i 1))
+              (if (< i (vector-length vec))
+                (begin
+                 (when (> (vector-ref vec (- i 1)) (vector-ref vec i))
+                   (swap! vec (- i 1) i)
+                   (set! swapped? true))
+                 (loop2 (+ i 1)))))
+         (when swapped? (loop false)))
+    vec))
+
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
 ;;; (clojure.test/run-tests 'revue.riley-test)

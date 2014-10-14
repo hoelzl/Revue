@@ -224,16 +224,16 @@
         new-store (into store contents)]
     [(->VmVector address size) new-store]))
 
-(defn vector-get
+(defn vector-ref
   "Return the element at position `i` of vector `v` in `store`."
   [store v i]
   #_
   (assert (satisfies? VmVector v)
-          (str "Called vector-get on " v
+          (str "Called vector-ref on " v
                " which is not a vector."))
   ;; It might be better to throw IndexOutOfBoundsException here...
   (assert (< -1 i (-size v store))
-          (str "Index for vector-get out of bounds: " i
+          (str "Index for vector-ref out of bounds: " i
                " (max " (-size v store) ")."))
   (nth store (+ (-address v store) i)))
 

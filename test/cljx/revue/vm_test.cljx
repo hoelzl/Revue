@@ -432,7 +432,7 @@
              :store [nil nil nil nil nil])))))
 
 (deftest PRIM-step-07
-  (let [inst (vm/->PRIM 'vector-get)
+  (let [inst (vm/->PRIM 'vector-ref)
         state {:stack (list 0 (mem/->VmVector 0 5) 10)
                :n-args 2
                :store [1 2 3 4 5]}]
@@ -442,7 +442,7 @@
              :store [1 2 3 4 5])))))
 
 (deftest PRIM-step-08
-  (let [inst (vm/->PRIM 'vector-get)
+  (let [inst (vm/->PRIM 'vector-ref)
         state {:stack (list 1 (mem/->VmVector 0 5) 10)
                :n-args 2
                :store [1 2 3 4 5]}]
@@ -482,7 +482,7 @@
              :store [1 2 3 4 6])))))
 
 (deftest PRIM-step-12
-  (let [inst (vm/->PRIM 'vector-get)
+  (let [inst (vm/->PRIM 'vector-ref)
         state {:stack (list -1 (mem/->VmVector 0 5) 10)
                :n-args 2
                :store [1 2 3 4 5]}]
@@ -490,7 +490,7 @@
          (vm/-step inst state)))))
 
 (deftest PRIM-step-13
-  (let [inst (vm/->PRIM 'vector-get)
+  (let [inst (vm/->PRIM 'vector-ref)
         state {:stack (list 5 (mem/->VmVector 0 5) 10)
                :n-args 2
                :store [1 2 3 4 5]}]
