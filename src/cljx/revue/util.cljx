@@ -386,36 +386,17 @@
     (nth frame-vector slot)))
 
 (defn in-env? [env var]
-  "Return the a pair `[frame]`"
-  (loop [frames (frames env) n-frame 0]
-    (if (empty? frames)
-      false
-      (if-let [result (loop [vals (first frames) pos 0]
-                        (cond (empty? vals)
-                              false
-                              (= var (first vals))
-                              [n-frame pos]
-                              :else
-                              (recur (rest vals) (inc pos))))]
-        result
-        (recur (rest frames) (inc n-frame))))))
-
-;;; @MargDisable
-;;; Alternative implementation of `in-env?`.  I'm not sure which one I
-;;; prefer, neither one seems as elegant as it should be.
-
-#_
-(defn in-env? [env var]
-  (first
-   (keep-indexed (fn [n-frame frame]
-                   (if-let [pos-in-frame
-                            (first (keep-indexed (fn [index val]
-                                                   (if (= var val) index nil))
-                                                 (seq frame)))]
-                     [n-frame pos-in-frame]
-                     nil))
-                 (frames env))))
-;;; @MargEnable
+  (if (not env)
+    nil
+    (first
+     (keep-indexed (fn [n-frame frame]
+                     (if-let [pos-in-frame
+                              (first (keep-indexed (fn [index val]
+                                                     (if (= var val) index nil))
+                                                   (seq frame)))]
+                       [n-frame pos-in-frame]
+                       nil))
+                   (frames env)))))
 
 ;;; @MargDisable
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for

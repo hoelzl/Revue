@@ -48,7 +48,8 @@
                                 (vm/->SET-CC)
                                 (vm/->CC)
                                 (vm/->HALT)
-                                (vm/->OP 'quux 17)])
+                                (vm/->OP 'quux 17)]
+                         :toplevel-fun-name 'foo)
         init-state (vm/initial-state fun)
         state #(assoc init-state :pc %1)]
     (is (= (vm/current-instruction (state 0))
@@ -112,7 +113,8 @@
                                 (vm/->SET-CC)
                                 (vm/->CC)
                                 (vm/->HALT)
-                                (vm/->OP 'quux 17)])
+                                (vm/->OP 'quux 17)]
+                         :toplevel-fun-name 'foo)
         init-state (vm/initial-state fun)
         state #(assoc init-state :pc %1)]
     (is (vm/current-instruction-is (state 0) 'LVAR))
@@ -322,7 +324,8 @@
                                      (vm/->RETURN 'foo))
                          :env (util/env [1 2 3])
                          :name 'foo
-                         :args '(x))]
+                         :args '(x)
+                         :toplevel-fun-name 'foo)]
       (is (= (vm/-step (vm/->CALLJ 1)
                        {:stack (list f 4)
                         :fun 'bar :pc 10 :env (util/env [4 5])})
@@ -415,7 +418,8 @@
                                    (vm/->RETURN 'foo))
                        :env (util/env [1 2 3])
                        :name 'foo
-                       :args '(x))
+                       :args '(x)
+                       :toplevel-fun-name 'foo)
         env  (util/env [5 6])]
     (is (= (vm/-step (vm/->FUN f) {:stack '(1 2) :env env})
            {:stack (list (assoc f :env env) 1 2)

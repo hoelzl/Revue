@@ -218,8 +218,7 @@
     (into []
           (for [address (range (:address this)
                                (+ (:address this) (:size this)))]
-            (do (util/debug-println "-->clojure:" store address)
-                (->clojure (store address) store)))))
+            (->clojure (store address) store))))
   HeapObject
   (-address [this store]
     (:address this))

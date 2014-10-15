@@ -130,7 +130,6 @@
   generated."
   (binding [*current-form* var]
     (let [pos (util/in-env? env var)]
-      (util/debug-println "Found var" var "in env" env "at pos" pos)
       (if pos
         (gen 'LVAR (first pos) (second pos) var)
         (gen 'GVAR var)))))

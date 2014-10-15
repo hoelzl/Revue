@@ -1076,6 +1076,10 @@
   of the function whose code is executing when `frame` is active."
   (:name (active-function frame)))
 
+(defn suspended-activations [frame]
+  "Return all return addresses of functions on the stack"
+  (filter return-address? (:stack frame)))
+
 (defn suspended-functions [frame]
   "Return a sequence of all functions for which there is a return
   address on the stack of `frame`.  Note that this does not
@@ -1083,7 +1087,7 @@
   function appearing in the list; since the return address is pushed
   before the arguments are evaluated, the first functions in the
   suspended-functions list may still be active."
-  (map :fun (filter return-address? (:stack frame))))
+  (map :fun (suspended-activations frame)))
 
 (defn suspended-function-names [frame]
   "Return a sequence containing the names of all functions for which
@@ -1095,6 +1099,9 @@
   generating `frame`."
   (:toplevel-fun-name (:fun frame)))
 
+(defn find-topmost-activation [frame fun-name]
+  (first (filter #(= (:name (:fun %1)) fun-name)
+                 (suspended-activations frame))))
 
 (defn local-variables [fun]
   (let [body-env (:body-env fun)
@@ -1104,26 +1111,27 @@
 (defn local-variable-index [fun var]
   (util/in-env? (:body-env fun) var))
 
-(defn local-variable-value [frame fun var]
-  (if (= fun (active-function frame))
-    (let [fun (:fun frame)
-          env (:env frame)
-          [env-frame-index slot-index] (local-variable-index fun var)
-          env-frame (nth env env-frame-index)]
-      (mem/->clojure (nth env-frame slot-index) (:store frame)))
-    (let [return-address nil]
-      :not-implemented-yet)))
-
-(defn user-frame? [frame]
-  "Return true if the toplevel function of `frame` is a user-defined
-  function, i.e., if we are running user code."
-  ((user-defined-globals frame) (toplevel-function frame)))
+(defn local-variable-value [frame fun-name var]
+  (let [[fun env] (if (= fun-name (:name (active-function frame)))
+                    [(active-function frame) (:env frame)]
+                    ((juxt :fun :env)
+                     (find-topmost-activation frame fun-name)))
+        [env-frame-index slot-index]  (local-variable-index fun var)]
+    (if (and env-frame-index slot-index)
+      (let [env-frame (nth env env-frame-index)]
+        (mem/->clojure (nth env-frame slot-index) (:store frame)))
+      nil)))
 
 (defn active-frames [trace]
   "Return a sequence of all frames generated while the program is
   still running.  This function is non-lazy and will therefore loop
   for non-terinating programs."
   (vec (take-while (complement :stopped?) trace)))
+
+(defn user-frame? [frame]
+  "Return true if the toplevel function of `frame` is a user-defined
+  function, i.e., if we are running user code."
+  ((user-defined-globals frame) (toplevel-function-name frame)))
 
 (defn user-frames [trace]
   "Retain all frames in `trace` in which a user-defined function is
