@@ -650,16 +650,18 @@
 #_
 (comp-show
  '(define (bubblesort vec)
-    (let loop ((swapped? false))
-         (let loop2 ((i 1))
-              (if (< i (vector-length vec))
-                (begin
-                 (when (> (vector-ref vec (- i 1))
-                          (vector-ref vec i))
-                   (swap! vec (- i 1) i)
-                   (set! swapped? true))
-                 (loop2 (+ i 1)))))
-         (when swapped? (loop false)))
+    (let ((swapped? (box false)))
+      (let loop1 ()
+           (set! swapped? false)
+           (let loop2 ((i 1))
+                (if (< i (vector-length vec))
+                  (begin
+                   (when (> (vector-ref vec (- i 1))
+                            (vector-ref vec i))
+                     (swap! vec (- i 1) i)
+                     (set! swapped? true))
+                   (loop2 (+ i 1)))))
+           (when swapped? (loop1))))
     vec)
  :assemble? true)
 

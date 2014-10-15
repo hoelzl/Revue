@@ -283,14 +283,17 @@
   "Implemented by instructions and labels, that want to override the
   default behavior of just printing the instruction preceeded by the
   current indentation."
-  (-show [this indent]))
+  (-show [this indent newline]))
 
 (extend-type #+clj Object #+cljs object
   VmShow
-  (-show [this indent]
+  (-show [this indent newline]
     (if (sequential? this)
-      (doseq [inst this] (-show inst indent))
-      (println (str (util/indent indent) this)))))
+      (doseq [inst this] (-show inst indent newline))
+      (println (str (util/indent indent) this
+                    ;; Add an additional newline for the benefit of
+                    ;; the JavaScript console
+                    (if newline "\n" ""))))))
 
 (defprotocol VmSeq
   "Implemented by instructions and labels so that they can be
@@ -321,7 +324,7 @@
     (str (:name this) ":"))
   VmLabel
   VmShow
-  (-show [this indent]
+  (-show [this indent newline]
     (print (str this))))
 
 ;;; `LVAR` pushes the value of the local variable in environment
@@ -741,10 +744,10 @@
   (-args [this]
     [(->> this :fun :code (map ->seq))])
   VmShow
-  (-show [this indent]
-    (-show (-opcode this) indent)
+  (-show [this indent newline]
+    (-show (-opcode this) indent newline)
     (binding [*indent* (inc indent)]
-      (-show (:code (:fun this)) (inc indent)))))
+      (-show (:code (:fun this)) (inc indent) newline))))
 
 ;;; `PRIM` invokes a primitive instruction.  Primitives are
 ;;; implemented as Clojure functions that receive the store as first
@@ -916,10 +919,11 @@
 (defn show
   "Print the assembly code for `thing` indented by `indent` tabs by
    calling `-show` on `thing`."
-  [thing & [indent]]
+  [thing & [indent newline?]]
+  (println "newline?:" newline?)
   (let [indent (or indent *indent*)]
-    (-show thing indent))
-  thing)
+    (-show thing indent newline?))
+  nil)
 
 ;;; The Assembler
 ;;; =============
