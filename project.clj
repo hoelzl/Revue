@@ -3,8 +3,12 @@
   
   :url "https://github.com/hoelzl/Revue"
   
-  :license {:name "Eclipse Public License"
-            :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :licenses [{:name "MIT License"
+              :url "http://opensource.org/licenses/MIT"
+              :distribution :repo}
+             {:name "Eclipse Public License - v 1.0"
+              :url "http://www.eclipse.org/legal/epl-v10.html"
+              :distribution :repo}]
   :pom-addition [:developers [:developer
                               [:id "mhoelzl"]
                               [:name "Matthias Hoelzl"]
@@ -18,9 +22,7 @@
   :test-paths ["target/test-classes"]
   :dependencies [[org.clojure/clojure "1.7.0-alpha2"]
                  [org.clojure/clojurescript "0.0-2371"]
-                 [org.clojure/tools.reader "0.8.9"]
-                 ;;[weasel "0.4.0-SNAPSHOT"]
-                 ]
+                 [org.clojure/tools.reader "0.8.9"]]
 
   :cljx {:builds [{:source-paths ["src/cljx"]
                    :output-path "target/classes"
