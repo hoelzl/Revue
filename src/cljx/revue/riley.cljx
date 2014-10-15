@@ -124,6 +124,7 @@
   generated."
   (binding [*current-form* var]
     (let [pos (util/in-env? env var)]
+      (util/debug-println "Found var" var "in env" env "at pos" pos)
       (if pos
         (gen 'LVAR (first pos) (second pos) var)
         (gen 'GVAR var)))))
@@ -355,6 +356,27 @@
       (list* (list* 'lambda 'let (map first bindings)
                     body)
              (map second bindings)))))
+
+;;; `let!` is a version of `let` that provides mutable bindings.
+
+(define-riley-macro 'let!
+  (fn [[bindings & body] env]
+    (if (symbol? bindings)
+      (let [[name bindings body] [bindings (first body) (rest body)]]
+        (list 'letrec (list (list name
+                                  (list* 'lambda (map first bindings) body)))
+              (list* name (map #(list 'box (second %1)) bindings))))
+      (list* (list* 'lambda 'let! (map first bindings)
+                    body)
+             (map #(list 'box (second %1)) bindings)))))
+
+
+;;; `loop` is a simple wrapper around a named let, to make loops look
+;;; less strange for non-Schemers
+
+(define-riley-macro 'loop
+  (fn [[bindings & body] env]
+    (list* 'let 'recur bindings body)))
 
 ;;; `when` is a simple wrapper around `if` and `begin` for the
 ;;; positive case only.
@@ -656,6 +678,30 @@
  ;;'(println "v = " v)
  'v)
 
+#_
+(result
+ '(define (swap! vec i j)
+    (let ((temp (vector-ref vec i)))
+      (vector-set! vec i (vector-ref vec j))
+      (vector-set! vec j temp))
+    vec)
+ '(define (bubblesort vec)
+    (let ((swapped? (box false)))
+      (let loop1 ()
+           (set! swapped? false)
+           (let loop2 ((i 1))
+                (if (< i (vector-length vec))
+                  (begin
+                   (when (> (vector-ref vec (- i 1))
+                            (vector-ref vec i))
+                     (swap! vec (- i 1) i)
+                     (set! swapped? true))
+                   (loop2 (+ i 1)))))
+           (when swapped? (loop1))))
+    vec)
+ '(println (bubblesort (vector 3 1 2)))
+ '(println (bubblesort (vector 7 8 9 11 5 3 12 1 2 4 10 6)))
+ '(bubblesort (vector 2 9 3 11 14 3 12 1 2 4 10 4)))
 
 #_
 (result
@@ -665,18 +711,22 @@
       (vector-set! vec j temp))
     vec)
  '(define (bubblesort vec)
-    (let loop ((swapped? false))
-         (let loop2 ((i 1))
-              (if (< i (vector-length vec))
-                (begin
-                 (when (> (vector-ref vec (- i 1))
-                          (vector-ref vec i))
-                   (swap! vec (- i 1) i)
-                   (set! swapped? true))
-                 (loop2 (+ i 1)))))
-         (when swapped? (loop false)))
+    (let! ((swapped? false))
+      (loop ()
+        (set! swapped? false)
+        (loop ((i 1))
+          (if (< i (vector-length vec))
+            (begin
+             (when (> (vector-ref vec (- i 1))
+                      (vector-ref vec i))
+               (swap! vec (- i 1) i)
+               (set! swapped? true))
+             (recur (+ i 1)))))
+        (when swapped? (recur))))
     vec)
- '(bubblesort (vector 3 1 2)))
+ '(println (bubblesort (vector 3 1 2)))
+ '(println (bubblesort (vector 7 8 9 11 5 3 12 1 2 4 10 6)))
+ '(bubblesort (vector 2 9 3 11 14 3 12 1 2 4 10 4)))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
