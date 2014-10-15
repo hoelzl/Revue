@@ -45,6 +45,10 @@
   This should only happen for top-level forms."
   :%unknown-function)
 
+(def ^:dynamic *toplevel-fun-name*
+  "The name of the toplevel function we are currently compiling."
+  'top-level)
+
 (def ^:dynamic *current-form*
   "The form we are currently compiling.  This should contain
   source-location info but currently doesn't because it seems that the
@@ -75,13 +79,15 @@
             (str "Unknown bytecode instruction: " opcode))
     (cond (= (:arity opcode-descr) (count args))
           (let [result (assoc (apply (:constructor opcode-descr) args)
-                         :source *current-form*
-                         :function *current-function*)]
+                         :source *current-form*)]
             [(if (util/debugging?)
                ;; Add an `opcode` attribute for debugging purposes,
                ;; since the Clojure pretty-printer doesn't print the
                ;; type of records.
-               (assoc result :opcode opcode)
+               (assoc result
+                 :opcode opcode
+                 :function *current-function*
+                 :toplevel-fun-name *toplevel-fun-name*)
                result)])
           :else
           (util/error "Bad arity for bytecode instruction " opcode))))
@@ -238,10 +244,15 @@
   ([args body env]
      (comp-lambda '%anonymous-lambda args body env))
   ([name args body env]
-     (binding [*current-function* name]
+     (binding [*current-function* name
+               *toplevel-fun-name* (if (= *toplevel-fun-name* 'top-level)
+                                     name
+                                     *toplevel-fun-name*)]
        (let [body-env (conj env (vec args))]
          (vm/make-fun :env env :args args
                       :body-env body-env
+                      :name name
+                      :toplevel-fun-name *toplevel-fun-name*
                       :code (gen-seq (gen-args name args)
                                      (comp-sequence
                                       body
@@ -578,6 +589,9 @@
     (catch #+clj java.lang.Exception #+cljs js/Error e
            :compiler-error)))
 
+(defn compile* [& forms]
+  (compile-all forms))
+
 (defn compile-str [string & {:keys [env assemble?]
                              :or {env (util/env) assemble? true}}]
   (try
@@ -729,6 +743,29 @@
  '(println (bubblesort (vector 3 1 2)))
  '(println (bubblesort (vector 7 8 9 11 5 3 12 1 2 4 10 6)))
  '(bubblesort (vector 2 9 3 11 14 3 12 1 2 4 10 4)))
+
+#_
+(def vm/trace
+  (run
+    '(define (swap! vec i j)
+       (let ((temp (vector-ref vec i)))
+         (vector-set! vec i (vector-ref vec j))
+         (vector-set! vec j temp))
+       vec)
+    '(define (bubblesort vec)
+       (let! ((swapped? false))
+             (loop ()
+               (set! swapped? false)
+               (loop ((i 1))
+                 (if (< i (vector-length vec))
+                   (begin
+                    (when (> (vector-ref vec (- i 1))
+                             (vector-ref vec i))
+                      (swap! vec (- i 1) i)
+                      (set! swapped? true))
+                    (recur (+ i 1)))))
+               (when swapped? (recur))))
+       vec)))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

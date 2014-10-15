@@ -85,8 +85,7 @@
     (binding [riley/*current-form* 'x]
       (is (= (riley/gen 'LSET 0 0 'x)
              (list (assoc (vm/->LSET 0 0 'x)
-                     :source 'x
-                     :function :%unknown-function)))))))
+                     :source 'x)))))))
 
 ;;; The following tests check mainly that the `-opcode` method and the
 ;;; `opcodes` table are defined consistenly.
@@ -98,7 +97,6 @@
         inst (first insts)]
     (is (= (vm/opcode inst) opcode))
     (is (= (:source inst) 'foo))
-    (is (= (:function inst) 'bar))
     (dorun (map (fn [[k v]]
                   (is (= (k inst) v)))
                 kv-table))))
@@ -170,12 +168,9 @@
 (defn add-source-info [inst & {:keys [function source]
                                        :or {function :%unknown-function
                                             source nil}}]
-  (let [inst1 (if (:function inst)
-                inst
-                (assoc inst :function function))]
-    (if (:source inst1)
-      inst1
-      (assoc inst1 :source source))))
+  (if (:source inst)
+    inst
+    (assoc inst :source source)))
 
 (deftest gen-seq
   (is (= (riley/gen-seq) []))
@@ -197,41 +192,41 @@
   (let [env (util/env '[x y] '[a b c])]
     (is (= (riley/gen-var 'x env)
            [(assoc (vm/->LVAR 0 0 'x)
-              :name 'x :source 'x :function :%unknown-function)]))
+              :name 'x :source 'x)]))
     (is (= (riley/gen-var 'y env)
            [(assoc (vm/->LVAR 0 1 'y)
-              :name 'y :source 'y :function :%unknown-function)]))
+              :name 'y :source 'y)]))
     (is (= (riley/gen-var 'a env)
            [(assoc (vm/->LVAR 1 0 'a)
-              :name 'a :source 'a :function :%unknown-function)]))
+              :name 'a :source 'a)]))
     (is (= (riley/gen-var 'b env)
            [(assoc (vm/->LVAR 1 1 'b)
-              :name 'b :source 'b :function :%unknown-function)]))
+              :name 'b :source 'b)]))
     (is (= (riley/gen-var 'c env)
            [(assoc (vm/->LVAR 1 2 'c)
-              :name 'c :source 'c :function :%unknown-function)]))
+              :name 'c :source 'c)]))
     (is (= (riley/gen-var 'z env)
-           [(assoc (vm/->GVAR 'z) :source 'z :function :%unknown-function)]))))
+           [(assoc (vm/->GVAR 'z) :source 'z)]))))
 
 (deftest gen-set
   (let [env (util/env '[x y] '[a b c])]
     (is (= (riley/gen-set 'x env '(set! x 0))
            [(assoc (vm/->LSET 0 0 'x)
-              :name 'x :source '(set! x 0) :function :%unknown-function)]))
+              :name 'x :source '(set! x 0))]))
     (is (= (riley/gen-set 'y env '(set! y 0))
            [(assoc (vm/->LSET 0 1 'y)
-              :name 'y :source '(set! y 0) :function :%unknown-function)]))
+              :name 'y :source '(set! y 0))]))
     (is (= (riley/gen-set 'a env '(set! a 0))
            [(assoc (vm/->LSET 1 0 'a)
-              :name 'a :source '(set! a 0) :function :%unknown-function)]))
+              :name 'a :source '(set! a 0))]))
     (is (= (riley/gen-set 'b env '(set! b 0))
            [(assoc (vm/->LSET 1 1 'b)
-              :name 'b :source '(set! b 0) :function :%unknown-function)]))
+              :name 'b :source '(set! b 0))]))
     (is (= (riley/gen-set 'c env '(set! c 0))
            [(assoc (vm/->LSET 1 2 'c)
-              :name 'c :source '(set! c 0) :function :%unknown-function)]))
+              :name 'c :source '(set! c 0))]))
     (is (= (riley/gen-set 'z env '(set! z 0))
-           [(assoc (vm/->GSET 'z) :source '(set! z 0) :function :%unknown-function)]))))
+           [(assoc (vm/->GSET 'z) :source '(set! z 0))]))))
 
 (deftest gen-args-1
   (is (= (riley/gen-args 'foo [])
@@ -271,10 +266,10 @@
     (is (= (riley/comp-const 1 false false) []))
     (is (= (riley/comp-const 1 false true) []))
     (is (= (riley/comp-const 1 true false)
-           (map #(assoc %1 :source nil :function 'foo)
+           (map #(assoc %1 :source nil)
                 [(vm/->CONST 1) (vm/->RETURN 'foo)])))
     (is (= (riley/comp-const 1 true true)
-           [(assoc (vm/->CONST 1) :source nil :function 'foo)]))))
+           [(assoc (vm/->CONST 1) :source nil)]))))
 
 (deftest comp-sequence
   (is (= (riley/comp-sequence [] (util/env) false false) []))

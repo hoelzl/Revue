@@ -22,12 +22,11 @@
 ;;; ======================
 
 (def global-env
-  "The most recent global environment created by
-  `make-global-environment`."
+  "The most recent global environment created by `make-global-env`."
   (atom {}))
 (def global-store
   "The most recent store corresponding to a global environment created
-  by `make-global-environment`"
+  by `make-global-env`"
   (atom []))
 
 (defn make-global-env
@@ -63,12 +62,13 @@
   for debugging purposes and `args` is the argument list of the
   function.  When a closure is built from the function, `env` is
   overwritten with the run-time environment for the closure."
-  [& {:keys [code env body-env name args]}]
+  [& {:keys [code env body-env name toplevel-fun-name args]}]
   {:type :bytecode-function
    :code code
    :env env
    :body-env body-env
    :name name
+   :toplevel-fun-name toplevel-fun-name
    :args args})
 
 ;;; Since the VM works on a function-by-function basis, return
@@ -85,6 +85,8 @@
    :pc pc
    :env env})
 
+(defn return-address? [value]
+  (= (:type value) :return-address))
 
 ;;; The VM State
 ;;; ============
@@ -1047,11 +1049,33 @@
   #_(println "Running the VM on " prog)
   (iterate step (initial-state prog)))
 
+(defn globals [frame]
+  (set (keys (:global-env frame))))
+
+(defn user-defined-globals [frame]
+  (set (keys (apply dissoc (:global-env frame) (keys @global-env)))))
+
+(defn active-function [frame]
+  (:name (:fun frame)))
+
+(defn suspended-functions [frame]
+  (map (comp :name :fun)
+       (filter return-address? (:stack frame))))
+
+(defn toplevel-function [frame]
+  (:toplevel-fun-name (:fun frame)))
+
+(defn user-frame? [frame]
+  ((user-defined-globals frame) (toplevel-function frame)))
+
 (defn active-frames [trace]
   "Return a sequence of all frames generated while the program is
   still running.  This function is non-lazy and will therefore loop
   for non-terinating programs."
-  (take-while (complement :stopped?) trace))
+  (vec (take-while (complement :stopped?) trace)))
+
+(defn user-frames [trace]
+  (filter user-frame? trace))
 
 (defn stopped-frame [trace]
   "Return the first frame for which `stopped?` is truthy.  This
@@ -1066,7 +1090,6 @@
   non-terinating programs."
   (let [frame (stopped-frame trace)]
     (mem/->clojure (first (:stack frame)) (:store frame))))
-
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
