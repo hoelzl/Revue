@@ -371,6 +371,16 @@
     (prop/for-all [l nested-list store (gen-state)]
       (is (= (apply mem/->clojure (mem/->vm l [])) l)))))
 
+
+(deftest ->clojure-nested-vector-vm-vector
+  (testing "VmVector nested inside a vector"
+    (is (= (mem/->clojure [(mem/->VmVector 0 3)] [1 2 3])
+           [[1 2 3]]))
+    (is (= (mem/->clojure [(mem/->VmVector 0 3) (mem/->VmVector 3 3)]
+                          [1 2 3 4 5 6])
+           [[1 2 3] [4 5 6]]))))
+
+
 (defspec ->clojure->vm-vector
   (if *large-tests* *large-number-of-repetitions* 10)
   (testing

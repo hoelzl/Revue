@@ -102,7 +102,7 @@
   (-->clojure [this store] ())
   #+clj clojure.lang.PersistentVector #+cljs cljs.core/PersistentVector
   (-->clojure [this store]
-    (mapv ->clojure this)))
+    (mapv #(->clojure %1 store) this)))
 
 (defprotocol HeapObject
   "Datatypes that are stored on the heap implement the `HeapObject`
@@ -204,7 +204,8 @@
     (into []
           (for [address (range (:address this)
                                (+ (:address this) (:size this)))]
-            (->clojure (store address) store))))
+            (do (util/debug-println "-->clojure:" store address)
+                (->clojure (store address) store)))))
   HeapObject
   (-address [this store]
     (:address this))
