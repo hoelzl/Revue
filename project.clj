@@ -3,6 +3,9 @@
   
   :url "https://github.com/hoelzl/Revue"
   
+  :license {:name "MIT License"
+            :url "http://opensource.org/licenses/MIT"
+            :distribution :repo}
   :licenses [{:name "MIT License"
               :url "http://opensource.org/licenses/MIT"
               :distribution :repo}
@@ -14,7 +17,6 @@
                               [:name "Matthias Hoelzl"]
                               [:url "https://github.com/hoelzl"]
                               [:email "tc@xantira.com"]]]
-  :repositories [["local" "file:///Users/tc/.m2/repository"]]
   
   :exclusions [org.clojure/clojure org.clojure/clojurescript]
   :jar-exclusions [#"\.cljx|\.swp|\.swo|\.DS_Store"]

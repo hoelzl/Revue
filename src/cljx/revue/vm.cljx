@@ -21,6 +21,15 @@
 ;;; The Global Environment
 ;;; ======================
 
+(def global-env
+  "The most recent global environment created by
+  `make-global-environment`."
+  (atom {}))
+(def global-store
+  "The most recent store corresponding to a global environment created
+  by `make-global-environment`"
+  (atom []))
+
 (defn make-global-env
   "Create a hash table and store that represent `table` in VM data
   format."
@@ -32,7 +41,10 @@
     (if ks
       (let [[v new-store] (mem/->vm (first vs) store)]
         (recur (next ks) (next vs) (assoc result (first ks) v) new-store))
-      [result store])))
+      (do
+        (reset! global-env result)
+        (reset! global-store store)
+        [result store]))))
 
 
 ;;; Functions and Return Addresses
