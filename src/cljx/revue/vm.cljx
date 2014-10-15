@@ -63,6 +63,8 @@
   function.  When a closure is built from the function, `env` is
   overwritten with the run-time environment for the closure."
   [& {:keys [code env body-env name toplevel-fun-name args]}]
+  (assert code "Cannot create a function without code.")
+  (assert toplevel-fun-name "Missing name of top-level function.")
   {:type :bytecode-function
    :code code
    :env env
@@ -743,7 +745,7 @@
   ;; until ClojureScript provides a pretty printer this will have to
   ;; do.
   (toString [this]
-    (str (-opcode this) " " ((-args this) this)))
+    (apply str (-opcode this) " " (-args this)))
   VmInst
   (-step [this vm-state]
     (assoc vm-state :stack
@@ -1037,7 +1039,10 @@
 ;;; The VM simply returns an infinite sequence that iterates the
 ;;; `step` function on an initial state generated from a bytecode
 ;;; program.  Some utility functions serve to extract interesting
-;;; information, e.g., the result value.
+;;; information, e.g., the result value.  Note that we call the VM
+;;; state a `frame` of the machine's trace in this section since this
+;;; might be a little bit more descriptive for users not familiar with
+;;; the internals of the VM.
 
 (defn vm
   "Run the virtual machine on bytecode program `prog` and generate an
@@ -1050,22 +1055,68 @@
   (iterate step (initial-state prog)))
 
 (defn globals [frame]
+  "Return a set containing all names of global variables in
+  `frame`.  (This is frame dependent, becaus the definition of global
+  variables creates a new global environment, therefore variables
+  don't appear as global variables until they are actually defined.)"
   (set (keys (:global-env frame))))
 
 (defn user-defined-globals [frame]
+  "Return a set of all names of global variables that were defined by
+  the user."
   (set (keys (apply dissoc (:global-env frame) (keys @global-env)))))
 
 (defn active-function [frame]
-  (:name (:fun frame)))
+  "Return the active function for `frame`, i.e., the function whose
+  code is executiong when `frame` is active."
+  (:fun frame))
+
+(defn active-function-name [frame]
+  "Return the name of the active function for `frame`, i.e., the name
+  of the function whose code is executing when `frame` is active."
+  (:name (active-function frame)))
 
 (defn suspended-functions [frame]
-  (map (comp :name :fun)
-       (filter return-address? (:stack frame))))
+  "Return a sequence of all functions for which there is a return
+  address on the stack of `frame`.  Note that this does not
+  necessarily mean that there is a suspended activation for each
+  function appearing in the list; since the return address is pushed
+  before the arguments are evaluated, the first functions in the
+  suspended-functions list may still be active."
+  (map :fun (filter return-address? (:stack frame))))
 
-(defn toplevel-function [frame]
+(defn suspended-function-names [frame]
+  "Return a sequence containing the names of all functions for which
+  there is a return address on the stack of `frame`."
+  (map :name (suspended-functions frame)))
+
+(defn toplevel-function-name [frame]
+  "Return the name of the toplevel function that is responsible for
+  generating `frame`."
   (:toplevel-fun-name (:fun frame)))
 
+
+(defn local-variables [fun]
+  (let [body-env (:body-env fun)
+        local-vars (flatten body-env)]
+    (zipmap local-vars (map #(util/in-env? body-env %1) local-vars))))
+
+(defn local-variable-index [fun var]
+  (util/in-env? (:body-env fun) var))
+
+(defn local-variable-value [frame fun var]
+  (if (= fun (active-function frame))
+    (let [fun (:fun frame)
+          env (:env frame)
+          [env-frame-index slot-index] (local-variable-index fun var)
+          env-frame (nth env env-frame-index)]
+      (mem/->clojure (nth env-frame slot-index) (:store frame)))
+    (let [return-address nil]
+      :not-implemented-yet)))
+
 (defn user-frame? [frame]
+  "Return true if the toplevel function of `frame` is a user-defined
+  function, i.e., if we are running user code."
   ((user-defined-globals frame) (toplevel-function frame)))
 
 (defn active-frames [trace]
@@ -1075,6 +1126,8 @@
   (vec (take-while (complement :stopped?) trace)))
 
 (defn user-frames [trace]
+  "Retain all frames in `trace` in which a user-defined function is
+  running, i.e., all frames for which `user-frame?` is true."
   (filter user-frame? trace))
 
 (defn stopped-frame [trace]

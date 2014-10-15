@@ -745,8 +745,8 @@
  '(bubblesort (vector 2 9 3 11 14 3 12 1 2 4 10 4)))
 
 #_
-(def vm/trace
-  (run
+(def trace
+  (revue.riley/run
     '(define (swap! vec i j)
        (let ((temp (vector-ref vec i)))
          (vector-set! vec i (vector-ref vec j))
@@ -766,6 +766,32 @@
                     (recur (+ i 1)))))
                (when swapped? (recur))))
        vec)))
+
+#_
+(def trace
+  (revue.riley/run
+    '(define (swap! vec i j)
+       (let ((temp (vector-ref vec i)))
+         (vector-set! vec i (vector-ref vec j))
+         (vector-set! vec j temp))
+       vec)
+    '(define (bubblesort vec)
+       (let! ((swapped? false))
+             (loop ()
+               (set! swapped? false)
+               (loop ((i 1))
+                 (if (< i (vector-length vec))
+                   (begin
+                    (when (> (vector-ref vec (- i 1))
+                             (vector-ref vec i))
+                      (swap! vec (- i 1) i)
+                      (set! swapped? true))
+                    (recur (+ i 1)))))
+               (when swapped? (recur))))
+       vec)
+    '(println (bubblesort (vector 4 2 9 3 1 7 5 6 4)))
+    '(bubblesort 38 93 7 134 4 75 23 49)))
+
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:
