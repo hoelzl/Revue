@@ -72,4 +72,4 @@
                                           "cljsbuild" "test"]
                              "jtest" ["do" "cljx" "once," "test"]
                              "jstest" ["do" "cljx" "once," "cljsbuild" "test"]
-                             "deploy!" ["do" "clean," "cljx" "once," "deploy" "clojars"]}}})
+                             "deploy" ["do" "clean," "cljx" "once," "deploy" "clojars"]}}})
