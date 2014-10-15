@@ -102,7 +102,13 @@
   (-->clojure [this store] ())
   #+clj clojure.lang.PersistentVector #+cljs cljs.core/PersistentVector
   (-->clojure [this store]
-    (mapv #(->clojure %1 store) this)))
+    (mapv #(->clojure %1 store) this))
+  #+clj clojure.lang.PersistentArrayMap #+cljs cljs.core/PersistentArrayMap
+  (-->clojure [this store]
+    (mapv #(->clojure %1 store) this))
+  #+clj clojure.lang.MapEntry
+  (-->clojure [this store]
+    (-->clojure (vec this) store)))
 
 (defprotocol HeapObject
   "Datatypes that are stored on the heap implement the `HeapObject`
@@ -143,6 +149,9 @@
 ;;; TODO: Switch the order of arguments!
 ;;; @MargEnable
 
+(defn box? [thing]
+  (instance? VmBox thing))
+
 (defn new-box
   "Allocate a new `VmBox` cell.  The `value` parameter should be a
   stored value.  Return the new box reference and the new store."
@@ -150,6 +159,11 @@
   (let [address (count store)
         new-store (conj store value)]
     [(->VmBox address) new-store]))
+
+(defn box-ref
+  "Get the value stored in a box."
+  [store box]
+  (nth store (-address box store)))
 
 (defn box-set!
   "Change the value stored in a box."
@@ -288,11 +302,14 @@
 
 (defn ->clojure
   "Convert stored data to expressed data, i.e., convert from the VM's
-  internal format to plain old Clojure data."
+  internal format to plain old Clojure data.  If `d` is not stored
+  data return it unchanged."
   ([d]
      (->clojure d []))
   ([d store]
-     (-->clojure d store)))
+     (if (satisfies? StoredData d)
+       (-->clojure d store)
+       d)))
 
 (defprotocol ExpressedData
   "Datatypes that can be converted to a VM representation.  The

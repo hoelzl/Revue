@@ -158,29 +158,57 @@
       (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
                    (vm/-step (vm/->LVAR 0 2 'x) state)))))
 
+(deftest LVAR-step-03
+  (testing "LVAR -step function for boxes."
+    (let [env (util/env [(mem/->VmBox 0) (mem/->VmBox 1)]
+                        [(mem/->VmBox 2) (mem/->VmBox 3)])
+          state {:env env :stack '(4 5) :store [0 1 2 3]}]
+      (is (= (vm/-step (vm/->LVAR 0 0 'x) state)
+             {:env env :stack '(0 4 5) :store [0 1 2 3]}))
+      (is (= (vm/-step (vm/->LVAR 0 1 'x) state)
+             {:env env :stack '(1 4 5) :store [0 1 2 3]}))
+      (is (= (vm/-step (vm/->LVAR 1 0 'x) state)
+             {:env env :stack '(2 4 5) :store [0 1 2 3]}))
+      (is (= (vm/-step (vm/->LVAR 1 1 'x) state)
+             {:env env :stack '(3 4 5) :store [0 1 2 3]})))))
+
 (deftest LSET-step-01
   (testing "LSET -step function"
     (let [env (util/env [0 1] [2 3])
-          state {:env env :stack '(4 5)}]
+          state {:env env :stack '(4 5) :store []}]
       (is (= (vm/-step (vm/->LSET 0 0 'x) state)
-             {:env (util/env [4 1] [2 3]) :stack '(4 5)}))
+             {:env (util/env [4 1] [2 3]) :stack '(4 5) :store []}))
       (is (= (vm/-step (vm/->LSET 0 1 'x) state)
-             {:env (util/env [0 4] [2 3]) :stack '(4 5)}))
-      (is (= (vm/-step (vm/->LSET 0 2 'x) state)
-             {:env (util/env [0 1 4] [2 3]) :stack '(4 5)}))
+             {:env (util/env [0 4] [2 3]) :stack '(4 5) :store []}))
       (is (= (vm/-step (vm/->LSET 1 0 'x) state)
-             {:env (util/env [0 1] [4 3]) :stack '(4 5)}))
+             {:env (util/env [0 1] [4 3]) :stack '(4 5) :store []}))
       (is (= (vm/-step (vm/->LSET 1 1 'x) state)
-             {:env (util/env [0 1] [2 4]) :stack '(4 5)})))))
+             {:env (util/env [0 1] [2 4]) :stack '(4 5) :store []})))))
 
 (deftest LSET-step-02
   (testing "LSET -step function, out of bounds.")
     (let [env (util/env [0 1] [2 3])
-          state {:env env :stack '(4 5)}]
+          state {:env env :stack '(4 5) :store []}]
       (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
                    (vm/-step (vm/->LSET 2 0 'x) state)))
       (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
+                   (vm/-step (vm/->LSET 0 2 'x) state)))
+      (is (thrown? #+clj java.lang.IndexOutOfBoundsException #+cljs js/Error
                    (vm/-step (vm/->LSET 0 3 'x) state)))))
+
+(deftest LSET-step-03
+  (testing "LSET -step function for boxed values"
+    (let [env (util/env [(mem/->VmBox 0) (mem/->VmBox 1)]
+                        [(mem/->VmBox 2) (mem/->VmBox 3)])
+          state {:env env :stack '(4 5) :store [0 1 2 3]}]
+      (is (= (vm/-step (vm/->LSET 0 0 'x) state)
+             {:env env :stack '(4 5) :store [4 1 2 3]}))
+      (is (= (vm/-step (vm/->LSET 0 1 'x) state)
+             {:env env :stack '(4 5) :store [0 4 2 3]}))
+      (is (= (vm/-step (vm/->LSET 1 0 'x) state)
+             {:env env :stack '(4 5) :store [0 1 4 3]}))
+      (is (= (vm/-step (vm/->LSET 1 1 'x) state)
+             {:env env :stack '(4 5) :store [0 1 2 4]})))))
 
 (deftest GVAR-step-01
   (testing "GVAR"
@@ -307,21 +335,21 @@
 (deftest ARGS-step-01
   (testing "ARGS"
     (is (= (vm/-step (vm/->ARGS 0 'foo)
-                     {:n-args 0 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 0 :stack '(1 2 3 4) :env (util/env [] [5 6])}))
+                     {:n-args 0 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 0 :stack '(1 2 3 4) :env (util/env [] [5 6]) :store []}))
     (is (= (vm/-step (vm/->ARGS 1 'foo)
-                     {:n-args 1 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 1 :stack '(2 3 4) :env (util/env [1] [5 6])}))
+                     {:n-args 1 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 1 :stack '(2 3 4) :env (util/env [1] [5 6]) :store []}))
     (is (= (vm/-step (vm/->ARGS 2 'foo)
-                     {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 2 :stack '(3 4) :env (util/env [1 2] [5 6])}))
+                     {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 2 :stack '(3 4) :env (util/env [2 1] [5 6]) :store []}))
     (is (= (vm/-step (vm/->ARGS 4 'foo)
-                     {:n-args 4 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 4 :stack () :env (util/env [1 2 3 4] [5 6])}))))
+                     {:n-args 4 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 4 :stack () :env (util/env [4 3 2 1] [5 6]) :store []}))))
 
 (deftest ARGS-step-02
   (testing "ARGS: failure"
-    (let [state {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6])}]
+    (let [state {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6]) :store []}]
       (is (= (vm/-step (vm/->ARGS 0 'foo) state)
              (assoc state
                :stopped? true
@@ -338,32 +366,41 @@
 (deftest ARGS*-step-01
   (testing "ARGS*"
     (is (= (vm/-step (vm/->ARGS* 0 'foo)
-                     {:n-args 0 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 0 :stack '(1 2 3 4) :env (util/env [[]] [5 6])}))
+                     {:n-args 0 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 0 :stack '(1 2 3 4)
+            :env (util/env [(mem/->VmVector 0 0)] [5 6]) :store []}))
     (is (= (vm/-step (vm/->ARGS* 0 'foo)
-                     {:n-args 1 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 1 :stack '(2 3 4) :env (util/env  [[1]] [5 6])}))
+                     {:n-args 1 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 1 :stack '(2 3 4)
+            :env (util/env  [(mem/->VmVector 0 1)] [5 6]) :store [1]}))
     (is (= (vm/-step (vm/->ARGS* 0 'foo)
-                     {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 2 :stack '(3 4) :env (util/env [[1 2]] [5 6])}))
+                     {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 2 :stack '(3 4)
+            :env (util/env [(mem/->VmVector 0 2)] [5 6]) :store [2 1]}))
     (is (= (vm/-step (vm/->ARGS* 0 'foo)
-                     {:n-args 4 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 4 :stack '() :env (util/env [[1 2 3 4]] [5 6])}))
+                     {:n-args 4 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 4 :stack '()
+            :env (util/env [(mem/->VmVector 0 4)] [5 6]) :store [4 3 2 1]}))
     (is (= (vm/-step (vm/->ARGS* 1 'foo)
-                     {:n-args 1 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 1 :stack '(2 3 4) :env (util/env [1 []] [5 6])}))
+                     {:n-args 1 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 1 :stack '(2 3 4)
+            :env (util/env [1 (mem/->VmVector 0 0)] [5 6]) :store []}))
     (is (= (vm/-step (vm/->ARGS* 1 'foo)
-                     {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 2 :stack '(3 4) :env (util/env [1 [2]] [5 6])})) 
+                     {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 2 :stack '(3 4)
+            :env (util/env [2 (mem/->VmVector 0 1)] [5 6]) :store [1]})) 
     (is (= (vm/-step (vm/->ARGS* 1 'foo)
-                     {:n-args 3 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 3 :stack '(4) :env (util/env [1 [2 3]] [5 6])})) 
+                     {:n-args 3 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 3 :stack '(4)
+            :env (util/env [3 (mem/->VmVector 0 2)] [5 6]) :store [2 1]})) 
     (is (= (vm/-step (vm/->ARGS* 2 'foo)
-                     {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 2 :stack '(3 4) :env (util/env [1 2 []] [5 6])}))
+                     {:n-args 2 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 2 :stack '(3 4)
+            :env (util/env [2 1 (mem/->VmVector 0 0)] [5 6]) :store []}))
     (is (= (vm/-step (vm/->ARGS* 4 'foo)
-                     {:n-args 4 :stack '(1 2 3 4) :env (util/env [5 6])})
-           {:n-args 4 :stack () :env (util/env [1 2 3 4 []] [5 6])}))))
+                     {:n-args 4 :stack '(1 2 3 4) :env (util/env [5 6]) :store []})
+           {:n-args 4 :stack ()
+            :env (util/env [4 3 2 1 (mem/->VmVector 0 0)] [5 6]) :store []}))))
 
 (deftest ARGS*-step-02
   (testing "ARGS*: failure"

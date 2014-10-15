@@ -74,10 +74,15 @@
     (assert opcode-descr
             (str "Unknown bytecode instruction: " opcode))
     (cond (= (:arity opcode-descr) (count args))
-          (do
-            [(assoc (apply (:constructor opcode-descr) args)
-               :source *current-form*
-               :function *current-function*)])
+          (let [result (assoc (apply (:constructor opcode-descr) args)
+                         :source *current-form*
+                         :function *current-function*)]
+            [(if (util/debugging?)
+               ;; Add an `opcode` attribute for debugging purposes,
+               ;; since the Clojure pretty-printer doesn't print the
+               ;; type of records.
+               (assoc result :opcode opcode)
+               result)])
           :else
           (util/error "Bad arity for bytecode instruction " opcode))))
 
@@ -332,7 +337,7 @@
 
 (define-riley-macro 'letrec
   (fn [[bindings & body] env]
-    (list* 'let (map #(list (first %) nil) bindings)
+    (list* 'let (map #(list (first %) '(box nil)) bindings)
            (concat (map #(list 'set! (first %) (second %)) bindings)
                    body))))
 
@@ -568,6 +573,10 @@
   (vm/show (:code (compile form :env env :assemble? assemble?)))
   nil)
 
+(defn comp-show* [& forms]
+  (vm/show (:code (compile-all forms)))
+  nil)
+
 (defn comp-show-all [form & {:keys [env assemble?]
                              :or {env (util/env) assemble? false}}]
   (let [result (compile-all form :env env :assemble? assemble?)]
@@ -608,24 +617,66 @@
  '(fact 10))
 
 #_
-(result
+(comp-show
  '(define (swap! vec i j)
-    (define temp (vector-ref vec i))
-    (vector-set! vec i (vector-ref vec j))
-    (vector-set! vec j temp)
+    (let ((temp (vector-ref vec i)))
+      (vector-set! vec i (vector-ref vec j))
+      (vector-set! vec j temp))
     vec)
+ :assemble? true)
 
+#_
+(comp-show
  '(define (bubblesort vec)
     (let loop ((swapped? false))
          (let loop2 ((i 1))
               (if (< i (vector-length vec))
                 (begin
-                 (when (> (vector-ref vec (- i 1)) (vector-ref vec i))
+                 (when (> (vector-ref vec (- i 1))
+                          (vector-ref vec i))
                    (swap! vec (- i 1) i)
                    (set! swapped? true))
                  (loop2 (+ i 1)))))
          (when swapped? (loop false)))
-    vec))
+    vec)
+ :assemble? true)
+
+#_
+(result
+ '(define (swap! vec i j)
+    (let ((temp (vector-ref vec i)))
+      (vector-set! vec i (vector-ref vec j))
+      (vector-set! vec j temp))
+    vec)
+ '(define v (vector 3 1 2))
+ '(println v)
+ ;;'(swap! v 0 1)
+ ;;'(println "v = " v)
+ ;;'(swap! v 1 2)
+ ;;'(println "v = " v)
+ 'v)
+
+
+#_
+(result
+ '(define (swap! vec i j)
+    (let ((temp (vector-ref vec i)))
+      (vector-set! vec i (vector-ref vec j))
+      (vector-set! vec j temp))
+    vec)
+ '(define (bubblesort vec)
+    (let loop ((swapped? false))
+         (let loop2 ((i 1))
+              (if (< i (vector-length vec))
+                (begin
+                 (when (> (vector-ref vec (- i 1))
+                          (vector-ref vec i))
+                   (swap! vec (- i 1) i)
+                   (set! swapped? true))
+                 (loop2 (+ i 1)))))
+         (when swapped? (loop false)))
+    vec)
+ '(bubblesort (vector 3 1 2)))
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

@@ -224,6 +224,10 @@
          (make-prim name n-args code
                     constant-value? constant-value side-effects?)))
 
+(define-primitive 'box 1
+  (fn [store arg]
+    (mem/new-box store arg)))
+
 (define-primitive 'vector nil
   (fn [store & args]
     (mem/new-vector store args)))
@@ -331,20 +335,22 @@
          (:frame this) " " (:slot this) " ; " (:name this)))
   VmInst
   (-step [this vm-state]
-    (assoc vm-state
-      :stack (conj (:stack vm-state) (env-value vm-state this))))
+    (let [raw-value (env-value vm-state this)
+          value (if (mem/box? raw-value)
+                  (mem/box-ref (:store vm-state) raw-value)
+                  raw-value)]
+      (assoc vm-state
+        :stack (cons value (:stack vm-state)))))
   VmSeq
   (-opcode [this]
     'LVAR)
   (-args [this]
     ((juxt :frame :slot :name) this)))
 
-;;; `LSET` pops a value off the stack and puts it into environment
+;;; `LSET` stores to topmost value on the stack into environment
 ;;; location `[frame slot]`.  `name` is the name of the variable in
 ;;; the environment, `source` is the source expression that was
-;;; compiled into this instruction.  As a special case, if `slot` is
-;;; equal to the size of the respective frame, this frame is extended
-;;; by an additional slot.
+;;; compiled into this instruction.  `LSET` does not modify the stack.
 (defrecord LSET [frame slot name]
   Object
   (toString [this]
@@ -352,10 +358,18 @@
          (:frame this) " " (:slot this) " ; " (:name this)))
   VmInst
   (-step [this vm-state]
-    (let [{:keys [env stack]} vm-state
-          {:keys [frame slot]} this]
+    (let [{:keys [env stack store]} vm-state
+          {:keys [frame slot]} this
+          current-value (env-value vm-state {:frame frame :slot slot})
+          [new-store new-value] (if (mem/box? current-value)
+                                  (do
+                                    (assert (not (mem/box? (first stack)))
+                                            "Cannot box boxes!")
+                                    [(mem/box-set! store current-value (first stack)) current-value])
+                                  [store (first stack)])]
       (assoc vm-state
-        :env (assoc-in env [frame slot] (first stack)))))
+        :env (assoc-in env [frame slot] new-value)
+        :store new-store)))
   VmSeq
   (-opcode [this]
     'LSET)
@@ -372,8 +386,8 @@
   VmInst
   (-step [this vm-state]
     (assoc vm-state
-      :stack (conj (:stack vm-state)
-                   (get (:global-env vm-state) (:name this)))))
+      :stack (cons (get (:global-env vm-state) (:name this))
+                    (:stack vm-state))))
   VmSeq
   (-opcode [this]
     'GVAR)
@@ -389,7 +403,8 @@
   VmInst
   (-step [this vm-state]
     (assoc vm-state
-      :global-env (assoc (:global-env vm-state) name (first (:stack vm-state)))))
+      :global-env (assoc (:global-env vm-state) name
+                         (first (:stack vm-state)))))
   VmSeq
   (-opcode [this]
     'GSET)
@@ -425,7 +440,7 @@
           {:keys [stack store]} vm-state
           [value new-store] (mem/->vm value store)]
       (assoc vm-state
-        :stack (conj stack value)
+        :stack (cons value stack)
         :store new-store)))
   VmSeq
   (-opcode [this]
@@ -531,7 +546,7 @@
   VmInst
   (-step [this vm-state]
     (let [ret-addr (make-return-address (assoc vm-state :pc (:target this)))]
-      (update-in vm-state [:stack] conj ret-addr)))
+      (assoc vm-state :stack (cons ret-addr (:stack vm-state)))))
   VmSeq
   (-opcode [this]
     'SAVE)
@@ -557,7 +572,10 @@
       (cond
        (= (:type return-address) :return-address)
        (assoc vm-state
-         :stack (cons (first stack) (list* (drop 2 stack)))
+         ;; Ensure that the stack remains a list.  Use `apply list`
+         ;; instead of `list*` since the latter returns `nil` for an
+         ;; empty arglist while the former returns `()`.
+         :stack (cons (first stack) (apply list (drop 2 stack)))
          :fun fun
          :env (:env return-address)
          :pc (:pc return-address))
@@ -588,7 +606,10 @@
     (let [[fun & new-stack] (:stack vm-state)]
       (if fun
         (assoc vm-state
-          :stack (vec new-stack)
+         ;; Ensure that the stack remains a list.  Use `apply list`
+         ;; instead of `list*` since the latter returns `nil` for an
+         ;; empty arglist while the former returns `()`.
+          :stack (apply list new-stack)
           :fun fun
           :env (:env fun)
           :pc 0
@@ -604,25 +625,39 @@
 
 (defn move-args-from-stack-to-env
   "If `n-rest-args` is falsy, pop `n-args` arguments from the stack
-  and put them in a newly created environment frame.  If `n-rest-args`
-  is truthy it must be an integer, in that case `n-args` +
-  `n-rest-args` arguments are popped from the stack; the first
-  `n-args` are put in individual slots in the newly created
-  environment frame, the last `n-rest-args` are collected into a
-  vector and put in the (`n-args` + 1)st slot in the new environment
-  frame."
+  and put them in a newly created environment frame.  This function
+  assumes that the function arguments were pushed onto the stack in
+  reverse order.  If `n-rest-args` is truthy it must be an integer, in
+  that case `n-args` + `n-rest-args` arguments are popped from the
+  stack; the topmost `n-rest-args` on the stack are collected into a
+  vector in VM format and put in the (`n-args` + 1)st slot in the new
+  environment frame; the remaining `n-args` arguments are put in
+  individual slots in the newly created environment frame."
   [n-args vm-state & [n-rest-args]]
   (let [stack (:stack vm-state)
-        [tmp-frame tmp-stack] (split-at n-args stack)
-        [new-frame new-stack] (if-not n-rest-args
-                                [(vec tmp-frame) (apply list tmp-stack)]
-                                (let [[rest-args tmp-stack-2]
-                                      (split-at n-rest-args tmp-stack)]
-                                  [(conj (vec tmp-frame) (vec rest-args))
-                                   (apply list tmp-stack-2)]))]
+        store (:store vm-state)
+        [n-args* tmp-stack new-store]
+        (if-not n-rest-args
+          [n-args stack store]
+          (let [[clj-rest-arg tmp-stack-2] (split-at n-rest-args stack)
+                [rest-arg tmp-store] (mem/->vm (vec (reverse clj-rest-arg))
+                                               store)]
+            [(inc n-args)
+             (cons rest-arg (apply list tmp-stack-2))
+             tmp-store]))
+        [reverse-frame tmp-stack-3] (split-at n-args* tmp-stack)
+        [new-frame new-stack] [(vec (reverse reverse-frame))
+                               (apply list tmp-stack-3)]]
+    (assert (number? n-args*)
+            "New argument count is not a number.")
+    (assert (vector? new-frame)
+            "Did not create a new environment frame vector.")
+    (assert (list? new-stack)
+            "Did not create a new stack as list.")
     (assoc vm-state
       :env (conj (:env vm-state) new-frame)
-      :stack new-stack)))
+      :stack new-stack
+      :store new-store)))
 
 ;;; `ARGS` is the first bytecode instruction executed by functions
 ;;; with fixed arity.  It checks that the arity of the currently
@@ -694,8 +729,9 @@
     (str (-opcode this) " " ((-args this) this)))
   VmInst
   (-step [this vm-state]
-    (update-in vm-state [:stack] conj
-               (assoc fun :env (:env vm-state))))
+    (assoc vm-state :stack
+           (cons (assoc fun :env (:env vm-state))
+                 (:stack vm-state))))
   VmAssemble
   (-assemble [this]
     (assoc this :fun (assemble (:fun this))))
@@ -736,7 +772,7 @@
           [result new-store] (apply (:clj-fun prim-descr)
                                     (:store vm-state) (reverse raw-args))]
       (assoc vm-state
-        :stack (conj new-stack result)
+        :stack (cons result (apply list new-stack))
         :store new-store)))
   VmSeq
  (-opcode [this]
@@ -769,14 +805,16 @@
   VmInst
   (-step [this vm-state]
     (assoc vm-state
-      :stack (make-fun :code (assemble '((ARGS 1 'CC "%built-in")
-                                        (LVAR 1 0 stack)
-                                        (SET-CC)
-                                        (LVAR 0 0 fun)
-                                        (RETURN "%built-in")))
-                      :env (env (:stack vm-state))
-                      :name '%cc
-                      :args '[fun])))
+      :stack (cons
+              (make-fun :code (assemble '((ARGS 1 'CC "%built-in")
+                                          (LVAR 1 0 stack)
+                                          (SET-CC)
+                                          (LVAR 0 0 fun)
+                                          (RETURN "%built-in")))
+                        :env (env (:stack vm-state))
+                        :name '%cc
+                        :args '[fun])
+              (:stack vm-state))))
   VmSeq
   (-opcode [this]
     'CC)
@@ -818,12 +856,12 @@
   (-step [this vm-state]
     (let [stack (:stack vm-state)
           [raw-args new-stack] (split-at n-args stack)
-          args (mem/->clojure (vec (reverse raw-args)))
+          args (mem/->clojure (vec (reverse raw-args)) (:store vm-state))
           clj-result (apply (:clj-fun (get @operator-table (:name this)))
                             args)
           [result new-store] (mem/->vm clj-result (:store vm-state))]
       (assoc vm-state
-        :stack (conj new-stack result)
+        :stack (cons result new-stack)
         :store new-store)))
   VmSeq
   (-opcode [this]
