@@ -32,6 +32,33 @@
   #+cljs
   (println obj))
 
+;;; Debugging
+;;; =========
+
+;;; To support additional behavior when debugging, we introduce some
+;;; machinery that can be used throughout the other modules.
+
+(def ^:dynamic *debugging?* (atom false))
+
+(defn debugging? []
+  @*debugging?*)
+
+(defn enable-debugging! []
+  (reset! *debugging?* true))
+
+(defn disable-debugging! []
+  (reset! *debugging?* false))
+
+(defn debug-print [& args]
+  (when (debugging?)
+    (apply print args)
+    (flush)))
+
+(defn debug-println [& args]
+  (when (debugging?)
+    (apply println args)
+    (flush)))
+
 ;;; Warnings and Errors
 ;;; ====================
 

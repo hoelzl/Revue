@@ -16,6 +16,10 @@
             [revue.vm :as vm]
             [revue.riley :as riley]))
 
+;;; Turn debugging off, since the additional debug infomation will
+;;; screw up the test results.
+(util/disable-debugging!)
+
 (deftest warn-01
   (testing "Warnings from the compiler."
     (is (= (string/trim (with-out-str (riley/warn "What?"))) "Compiler Warning: What?"))))
