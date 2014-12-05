@@ -1,4 +1,4 @@
-(defproject revue "0.0.4-SNAPSHOT"
+(defproject revue "0.0.4"
   :description "REVUE: REVersible User Experiences"
   
   :url "https://github.com/hoelzl/Revue"
