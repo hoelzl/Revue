@@ -1067,8 +1067,8 @@
   (set (keys (apply dissoc (:global-env frame) (keys @global-env)))))
 
 (defn active-function [frame]
-  "Return the active function for `frame`, i.e., the function whose
-  code is executiong when `frame` is active."
+  "Return the active function for `frame`, i.e., the top-level
+  function whose code is executiong when `frame` is active."
   (:fun frame))
 
 (defn active-function-name [frame]
@@ -1099,7 +1099,8 @@
   generating `frame`."
   (:toplevel-fun-name (:fun frame)))
 
-(defn find-topmost-activation [frame fun-name]
+(defn find-most-recent-activation [frame fun-name]
+  (println "find-most-recent-activation:" fun-name)
   (first (filter #(= (:name (:fun %1)) fun-name)
                  (suspended-activations frame))))
 
@@ -1112,13 +1113,20 @@
   (util/in-env? (:body-env fun) var))
 
 (defn local-variable-value [frame fun-name var]
-  (let [[fun env] (if (= fun-name (:name (active-function frame)))
+  (let [[fun env] (if (= fun-name (active-function-name frame))
                     [(active-function frame) (:env frame)]
                     ((juxt :fun :env)
-                     (find-topmost-activation frame fun-name)))
+                     (find-most-recent-activation frame fun-name)))
         [env-frame-index slot-index]  (local-variable-index fun var)]
-    (if (and env-frame-index slot-index)
+    #_(println "local-variable-value: " fun-name (:name (active-function frame)) var)
+    #_(println "env: " env (if env (map print-str env) "no env") (not (not fun)))
+    #_(println "indices: " env-frame-index slot-index)
+    (if (and env-frame-index slot-index
+             ;; The first instruction of a function pops the
+             ;; environment from the stack so we have no locals, yet.
+             (not (zero? (:pc frame))))
       (let [env-frame (nth env env-frame-index)]
+        #_(println "env-frame: " env-frame)
         (mem/->clojure (nth env-frame slot-index) (:store frame)))
       nil)))
 
