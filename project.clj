@@ -22,9 +22,9 @@
   :jar-exclusions [#"\.cljx|\.swp|\.swo|\.DS_Store"]
   :source-paths ["src/cljx"]
   :test-paths ["target/test-classes"]
-  :dependencies [[org.clojure/clojure "1.7.0-alpha2"]
+  :dependencies [[org.clojure/clojure "1.7.0-alpha4"]
                  [org.clojure/clojurescript "0.0-2371"]
-                 [org.clojure/tools.reader "0.8.9"]]
+                 [org.clojure/tools.reader "0.8.13"]]
 
   :cljx {:builds [{:source-paths ["src/cljx"]
                    :output-path "target/classes"
