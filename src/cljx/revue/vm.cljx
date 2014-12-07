@@ -1118,15 +1118,11 @@
                     ((juxt :fun :env)
                      (find-most-recent-activation frame fun-name)))
         [env-frame-index slot-index]  (local-variable-index fun var)]
-    #_(println "local-variable-value: " fun-name (:name (active-function frame)) var)
-    #_(println "env: " env (if env (map print-str env) "no env") (not (not fun)))
-    #_(println "indices: " env-frame-index slot-index)
     (if (and env-frame-index slot-index
              ;; The first instruction of a function pops the
              ;; environment from the stack so we have no locals, yet.
              (not (zero? (:pc frame))))
       (let [env-frame (nth env env-frame-index)]
-        #_(println "env-frame: " env-frame)
         (mem/->clojure (nth env-frame slot-index) (:store frame)))
       nil)))
 
