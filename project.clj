@@ -23,7 +23,7 @@
   :source-paths ["src/cljx"]
   :test-paths ["target/test-classes"]
   :dependencies [[org.clojure/clojure "1.7.0-alpha4"]
-                 [org.clojure/clojurescript "0.0-2371"]
+                 [org.clojure/clojurescript "0.0-2411"]
                  [org.clojure/tools.reader "0.8.13"]]
 
   :cljx {:builds [{:source-paths ["src/cljx"]
@@ -62,7 +62,7 @@
 
   :profiles {:dev {:plugins [[com.cemerick/austin "0.2.0-SNAPSHOT"]
                              [com.cemerick/piggieback "0.1.4-SNAPSHOT"]
-                             [com.cemerick/clojurescript.test "0.3.1"
+                             [com.cemerick/clojurescript.test "0.3.2-SNAPSHOT"
                               :exclusions [com.google.guava/guava]]
                              [org.clojars.cemerick/cljx "0.5.0-SNAPSHOT"]
                              [lein-cljsbuild "1.0.4-SNAPSHOT"]]

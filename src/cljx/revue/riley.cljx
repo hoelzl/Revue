@@ -3,7 +3,7 @@
   Revue VM."
   (:refer-clojure :exclude (comp compile macroexpand macroexpand-1))
   (:require [revue.util :as util
-             :refer [pprint #+cljs nthrest env env-value]]
+             :refer [pprint #+cljs env env-value]]
             [revue.vm :as vm]))
 
 (defn warn [msg]

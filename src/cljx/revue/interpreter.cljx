@@ -1,7 +1,7 @@
 (ns revue.interpreter
   "A continuation- and state-passing interpreter using the memory
   subsystem."
-  (:require [revue.util :as util :refer [pprint #+cljs nthrest]]
+  (:require [revue.util :as util :refer [pprint]]
             [revue.mem :as mem]))
 
 ;;; This namespace contains an experimental interpreter that uses the
