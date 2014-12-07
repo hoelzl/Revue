@@ -1,7 +1,7 @@
  (ns revue.vm
   "The virtual machine for the Revue system."
   (:require [revue.util :as util
-             :refer [pprint #+cljs nthrest env env-value]]
+             :refer [pprint #+cljs env env-value]]
             [revue.mem :as mem]))
 
 
