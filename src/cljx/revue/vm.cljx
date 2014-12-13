@@ -1,7 +1,7 @@
  (ns revue.vm
   "The virtual machine for the Revue system."
   (:require [revue.util :as util
-             :refer [pprint #+cljs env env-value]]
+             :refer [pprint env env-value]]
             [revue.mem :as mem]))
 
 
@@ -172,10 +172,13 @@
 
 ;;; Some predefined operators:
 
+(define-operator 'not 1 not)
+(define-operator 'empty? 1 empty?)
 (define-operator '+ 0 :inf +)
 (define-operator '- 0 :inf -)
 (define-operator '* 0 :inf *)
 (define-operator '/ 1 :inf /)
+(define-operator '= 2 =)
 (define-operator '< 2 :inf <)
 (define-operator '<= 2 :inf <=)
 (define-operator '> 2 :inf >)
@@ -240,6 +243,10 @@
          (make-prim name n-args code
                     constant-value? constant-value side-effects?)))
 
+(define-primitive '== 2
+  (fn [store lhs rhs]
+    [(identical? lhs rhs) store]))
+
 (define-primitive 'box 1
   (fn [store arg]
     (mem/new-box store arg)))
@@ -263,6 +270,26 @@
 (define-primitive 'vector-set! 3
   (fn [store v i new-value]
     [nil (mem/vector-set! store v i new-value)]))
+
+(define-primitive 'cons 2
+  (fn [store x xs]
+    (mem/new-cons store [x xs])))
+
+(define-primitive 'car 1
+  (fn [store xs]
+    [(mem/cons-first store xs) store]))
+
+(define-primitive 'cdr 1
+  (fn [store xs]
+    [(mem/cons-rest store xs) store]))
+
+(define-primitive 'first 1
+  (fn [store xs]
+    [(mem/cons-first store xs) store]))
+
+(define-primitive 'rest 1
+  (fn [store xs]
+    [(mem/cons-rest store xs) store]))
 
 ;;; The Assembler (Well, Not Yet)
 ;;; =============================

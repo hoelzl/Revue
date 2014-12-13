@@ -3,7 +3,7 @@
   Revue VM."
   (:refer-clojure :exclude (comp compile macroexpand macroexpand-1))
   (:require [revue.util :as util
-             :refer [pprint #+cljs env env-value]]
+             :refer [pprint env env-value]]
             [revue.vm :as vm]))
 
 (defn warn [msg]
@@ -305,7 +305,7 @@
      (macroexpand form (util/env)))
   ([form env]
      (let [result (macroexpand-1 form env)]
-       (if (riley-macro? (first result) env)
+       (if (and (seq? result) (riley-macro? (first result) env))
          (recur result env)
          result))))
 
@@ -408,6 +408,30 @@
 (define-riley-macro 'unless
   (fn [[test & body] env]
     (list* 'when-not test body)))
+
+(define-riley-macro 'or
+  (fn [[& args] env]
+    (if (empty? args)
+      false
+      (if (empty? (rest args))
+        (first args)
+        ;; TODO: Gensym
+        (list 'let (list (list '__res (first args)))
+              (list 'if '__res
+                    '__res
+                    (cons 'or (rest args))))))))
+
+(define-riley-macro 'and
+  (fn [[& args] env]
+    (if (empty? args)
+      true
+      (if (empty? (rest args))
+        (first args)
+        ;; TODO: Gensym
+        (list 'let (list (list '__res (first args)))
+              (list 'if '__res
+                    (cons 'and (rest args))
+                    false))))))
 
 ;;; The Main Function
 ;;; =================
@@ -687,10 +711,10 @@
     vec)
  '(define v (vector 3 1 2))
  '(println v)
- ;;'(swap! v 0 1)
- ;;'(println "v = " v)
- ;;'(swap! v 1 2)
- ;;'(println "v = " v)
+ '(swap! v 0 1)
+ '(println "v = " v)
+ '(swap! v 1 2)
+ '(println "v = " v)
  'v)
 
 #_
@@ -789,7 +813,52 @@
                (when swapped? (recur))))
        vec)
     '(println (bubblesort (vector 4 2 9 3 1 7 5 6 4)))
-    '(bubblesort 38 93 7 134 4 75 23 49)))
+    '(bubblesort (vector 38 93 7 134 4 75 23 49))))
+
+#_
+(result
+ '(define (filter f xs)
+    (if (empty? xs)
+      '()
+      (if (f (first xs))
+        (cons (first xs) (filter f (rest xs)))
+        (filter f (rest xs)))))
+ '(filter (lambda (x) (< x 10)) '(1 10 100 2 20 200 3 30 300 4 40 400)))
+
+#_
+(result
+ '(define (append xs ys)
+    (if (empty? xs)
+      ys
+      (cons (first xs)
+            (append (rest xs) ys))))
+ '(append '(1 2 3) '(4 5 6)))
+
+#_
+(result
+ '(define (filter f xs)
+    (if (empty? xs)
+      '()
+      (if (f (first xs))
+        (cons (first xs) (filter f (rest xs)))
+        (filter f (rest xs)))))
+ '(define (append xs ys)
+    (if (empty? xs)
+      ys
+      (cons (first xs)
+            (append (rest xs) ys))))
+ '(define (qs xs)
+    (if (or (empty? xs) (empty? (rest xs)))
+      xs
+      (append (qs (filter (lambda (x) (<= x (first xs))) (rest xs)))
+              (cons (first xs)
+                    (qs (filter (lambda (x) (> x (first xs))) (rest xs)))))))
+ '(println (qs '()))
+ '(println (qs '(1)))
+ '(println (qs '(1 2)))
+ '(println (qs '(2 1)))
+ '(println (qs '(38 93 7 134 4 75 23 49)))
+ '(qs '(38 93 7 134 4 75 23 49)))
 
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
