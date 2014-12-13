@@ -200,11 +200,22 @@
   "Allocate a new `VmCons` cell.  The `car` and `cdr` parameters have
   to be `StoredData`.  Return the new cons cell reference and the new
   store."
-  [[car cdr] store]
+  [store [car cdr]]
   (let [address (count store)
         new-store (conj store car cdr)]
     [(->VmCons address) new-store]))
 
+(defn cons-first [store xs]
+  "Return the first element of a `VmCons` cell."
+  (if (empty? xs)
+    ()
+    (nth store (-address xs store))))
+
+(defn cons-rest [store xs]
+  "Return the rest of a `VmCons` cell."
+  (if (empty? xs)
+    ()
+    (nth store (inc (-address xs store)))))
 
 ;;; A `VmVector` is a reference to a vector occupying a contiguous
 ;;; part of the heap.  Vectors correspond to arrays in C or vectors in
@@ -362,7 +373,7 @@
                                    [() store]
                                    this)]
       (reduce (fn [[vm-cons store] d]
-                (new-cons [d vm-cons] store))
+                (new-cons store [d vm-cons]))
               [() new-store]
               elts)))
   #+clj clojure.lang.PersistentVector #+cljs cljs.core/PersistentVector
