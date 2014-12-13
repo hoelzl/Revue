@@ -860,6 +860,8 @@
  '(println (qs '(38 93 7 134 4 75 23 49)))
  '(qs '(38 93 7 134 4 75 23 49)))
 
+;;; TODO: Provide a library of standard functions that are not
+;;; primitives.  Also define functions for primitives.
 
 ;;; Evaluate this (e.g., with C-x C-e in Cider) to run the tests for
 ;;; this namespace:

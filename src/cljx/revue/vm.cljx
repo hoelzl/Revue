@@ -1127,7 +1127,7 @@
   (:toplevel-fun-name (:fun frame)))
 
 (defn find-most-recent-activation [frame fun-name]
-  (println "find-most-recent-activation:" fun-name)
+  #_(println "find-most-recent-activation:" fun-name)
   (first (filter #(= (:name (:fun %1)) fun-name)
                  (suspended-activations frame))))
 
