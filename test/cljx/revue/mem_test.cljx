@@ -152,7 +152,7 @@
 
 (deftest vm-cons-01
   (testing "Create VmCons instances."
-    (let [[vm-cons state] (mem/new-cons [1 ()] [])]
+    (let [[vm-cons state] (mem/new-cons [] [1 ()])]
       (is (= (:address vm-cons) 0))
       (is (= state [1 ()])))))
 
@@ -207,11 +207,11 @@
 
 (deftest ->clojure-cons
   (testing "Convert VmCons to Clojure."
-    (let [[vm-cons store] (mem/new-cons [1 ()] [])
+    (let [[vm-cons store] (mem/new-cons []  [1 ()])
           list (mem/->clojure vm-cons store)]
       (is (= list '(1))))
-    (let [[vm-cons store] (let [[obj store] (mem/new-cons [2 ()] [])]
-                            (mem/new-cons [1 obj] store))
+    (let [[vm-cons store] (let [[obj store] (mem/new-cons [] [2 ()])]
+                            (mem/new-cons store [1 obj]))
           list (mem/->clojure vm-cons store)]
       (is (= list '(1 2))))))
 
