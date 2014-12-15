@@ -963,7 +963,6 @@
   "Print the assembly code for `thing` indented by `indent` tabs by
    calling `-show` on `thing`."
   [thing & [indent newline?]]
-  (println "newline?:" newline?)
   (let [indent (or indent *indent*)]
     (-show thing indent newline?))
   nil)
