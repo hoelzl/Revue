@@ -444,6 +444,7 @@
    (util/boolean? form) ::boolean
    (symbol? form) ::symbol
    (util/atomic? form) ::atom
+   (vector? form) ::vector
    :else
    (case (first form)
      quote ::quote
@@ -473,6 +474,9 @@
 
 (defmethod comp ::atom [atom env val? more?]
   (comp-const atom val? more?))
+
+(defmethod comp ::vector [form env val? more?]
+  (comp-const form val? more?))
 
 (defmethod comp ::quote [form env val? more?]
   (arg-count form 1)
@@ -740,6 +744,7 @@
     vec)
  '(println (bubblesort (vector 3 1 2)))
  '(println (bubblesort (vector 7 8 9 11 5 3 12 1 2 4 10 6)))
+ '(println (bubblesort [7 8 9 11 5 3 12 1 2 4 10 6]))
  '(bubblesort (vector 2 9 3 11 14 3 12 1 2 4 10 4)))
 
 #_

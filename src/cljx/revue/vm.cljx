@@ -1150,6 +1150,10 @@
              ;; environment from the stack so we have no locals, yet.
              (not (zero? (:pc frame))))
       (let [env-frame (nth env env-frame-index)]
+        (assert env-frame
+                "Trying to access a non-existing frame.")
+        (assert (not (empty? env-frame))
+                "Trying to access value in empty frame.")
         (mem/->clojure (nth env-frame slot-index) (:store frame)))
       nil)))
 
